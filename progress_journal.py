@@ -215,7 +215,7 @@ class ProgressJournalUI:
     def __init__(self, journal: ProgressJournal):
         self.journal = journal
 
-    def render_entry_form(self):
+    def display_entry_form(self):
         """Render the progress entry form"""
         st.subheader("📝 Add Progress Entry")
         
@@ -319,7 +319,7 @@ class ProgressJournalUI:
                 except Exception as e:
                     st.error(f"Error saving progress entry: {str(e)}")
 
-    def render_progress_view(self):
+    def display_progress_view(self):
         """Render progress history view"""
         st.subheader("📊 Progress History")
         

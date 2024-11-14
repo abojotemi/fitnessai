@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field, ValidationError
 from dataclasses import dataclass
 import logging
 import json
+from chat_mod import DietAnalyzer
 from progress_journal import initialize_progress_journal
-# from workout import predict_image
 from llm import LLMHandler
 from gtts import gTTS
 import re
@@ -19,10 +19,6 @@ import assemblyai as aai
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from chat import predict_food, analyze_diet
-
-
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AppConfig:
     VALID_IMAGE_TYPES: tuple = ("png", "jpg", "jpeg", "gif", "webp")
-    MAX_IMAGE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    MAX_IMAGE_SIZE: int = 10 * 1024 * 1024 
     DEFAULT_WEIGHT: float = 30.0
     DEFAULT_HEIGHT: float = 120.0
     DEFAULT_AGE: int = 10
@@ -123,15 +119,15 @@ class UIComponents:
             </style>
         """, unsafe_allow_html=True)
 
-class FitAI:
+class FitnessCoachApp:
     """Main application class"""
     def __init__(self):
         self.config = AppConfig()
         SessionState.init_session_state()
         SessionState.load_progress_data()
         self.ui = UIComponents()
-        
-    def clean_markdown(self, text):
+        self.diet_analyzer = DietAnalyzer() 
+    def remove_markdown_formatting(self, text):
         """Remove common Markdown symbols using regular expressions"""
         # Remove headings (e.g., # Heading)
         text = re.sub(r'#', '', text)
@@ -155,7 +151,7 @@ class FitAI:
     def text_to_speech(self,text):
         """Convert text to speech and return the audio player HTML"""
         # Create gTTS object
-        tts = gTTS(text=self.clean_markdown(text), lang='en')
+        tts = gTTS(text=self.remove_markdown_formatting(text), lang='en')
         
         # Create a BytesIO object and write the audio to it
         audio_fp = io.BytesIO()
@@ -176,7 +172,7 @@ class FitAI:
         
         return audio_html
         
-    def run(self):
+    def start_application(self):
         """Main application entry point"""
         self.ui.setup_page()
         st.title("🏋️‍♂️ Fit AI - Your Personal Fitness Coach")
@@ -186,25 +182,25 @@ class FitAI:
         
         # Render appropriate tab content
         with tabs[0]:
-            self.render_profile_tab()
+            self.display_profile_section()
             
         if st.session_state.profile_completed:
             with tabs[1]:
-                self.render_workout_tab()
+                self.display_workout_section()
             with tabs[2]:
-                self.render_diet_tab()
+                self.display_diet_section()
             with tabs[3]:
-                self.render_questions_tab()
+                self.display_questions_section()
             with tabs[4]:
-                self.render_progress_journal_tab()
+                self.display_progress_journal_section()
             with tabs[5]:
-                self.render_analytics_tab()
+                self.display_analytics_section()
         else:
             for tab in tabs[1:]:
                 with tab:
                     st.info("Please complete your profile first.")
 
-    def render_profile_tab(self):
+    def display_profile_section(self):
         """Render profile tab content"""
         st.header("Your Profile")
         
@@ -282,63 +278,156 @@ class FitAI:
             st.error("An error occurred while loading the profile form. Please refresh the page.")
 
 
-    def render_workout_tab(self):
-        """Render workout tab content"""
+    def display_workout_section(self):
+        """Render workout tab content with enhanced functionality and error handling."""
         st.header("Generate Your Workout Routine")
-        if st.button("Generate Workout Routine"):
-            llm = LLMHandler()
-            with st.spinner("Creating your personalized fitness journey..."):
-                msg = llm.render_llm(st.session_state.user_info)
-                
-                # Convert the workout plan to speech
-                st.markdown("### 🎧 Listen to Your Plan")
-                st.markdown(self.text_to_speech(llm.summarizer(msg)), unsafe_allow_html=True)
-                
-                # Display the plan
-                st.markdown("### 📋 Your Plan")
-                st.markdown(msg.content)
-        
-        # Generate workout routine
-    def render_diet_tab(self):
-        """Render workout tab content"""
-        st.header("Diet Analyzer")
-        
-        # Equipment Image Analysis
-        img = st.file_uploader(
-            "Upload your workout equipment photo",
-            type=list(self.config.VALID_IMAGE_TYPES),
-            help="Upload a clear photo of your workout equipment"
+
+        # Equipment selection
+        equipment_options = [
+            "No Equipment (Bodyweight)",
+            "Basic Home Equipment",
+            "Full Gym Access",
+            "Resistance Bands Only",
+            "Dumbbells Only"
+        ]
+        selected_equipment = st.selectbox(
+            "What equipment do you have access to?",
+            options=equipment_options
         )
-        
-        if img:
+
+        # Workout duration preference
+        duration_options = {
+            "30 mins": 30,
+            "45 mins": 45,
+            "60 mins": 60,
+            "90 mins": 90
+        }
+        selected_duration = st.select_slider(
+            "Preferred workout duration",
+            options=list(duration_options.keys()),
+            value="45 mins"
+        )
+
+        # Workout frequency
+        frequency_options = {
+            "2-3 times per week": "2-3x",
+            "3-4 times per week": "3-4x",
+            "4-5 times per week": "4-5x",
+            "6+ times per week": "6+x"
+        }
+        selected_frequency = st.select_slider(
+            "Preferred workout frequency",
+            options=list(frequency_options.keys()),
+            value="3-4 times per week"
+        )
+
+        # Workout focus areas (multiple selection)
+        focus_areas = st.multiselect(
+            "Select focus areas",
+            options=["Strength Training", "Cardio", "Flexibility", "Core Strength", 
+                    "Weight Loss", "Muscle Gain", "Endurance"],
+            default=["Strength Training", "Cardio"]
+        )
+
+        # Existing injuries or limitations
+        limitations = st.text_area(
+            "Any injuries or limitations we should consider? (Optional)",
+            help="Enter any injuries, medical conditions, or limitations that might affect your workout"
+        )
+
+        if st.button("Generate Workout Routine", type="primary"):
             try:
-                st.image(img, caption="Your Food", use_container_width=True)
-                
-                if st.button("Get Food Items"):
-                    food_items = predict_food(img)
-                    if food_items:
-                        st.write("Detected food:", ", ".join(i[0] for i in food_items))
-                        
-                        diet_plan = analyze_diet(food_items,st.session_state.user_info)
-                        if diet_plan:
-                            st.markdown("### 📋 Your Personalized Diet Plan")
-                            st.markdown(diet_plan)
-                            
-                            # Save workout to history
-                            st.session_state.workout_history.append({
-                                "date": datetime.now().strftime("%Y-%m-%d"),
-                                "food_items": food_items,
-                                "plan": diet_plan
-                            })
-                        else:
-                            st.error("Unable to generate workout plan. Please try again.")
-                    else:
-                        st.error("Unable to analyze equipment. Please try a different image.")
-                        
+                with st.spinner("Creating your personalized fitness journey..."):
+                    # Prepare workout preferences
+                    workout_preferences = {
+                        "equipment": selected_equipment,
+                        "duration": duration_options[selected_duration],
+                        "frequency": frequency_options[selected_frequency],
+                        "focus_areas": ", ".join(focus_areas),  # Convert list to string
+                        "limitations": limitations.strip() if limitations else "None"
+                    }
+
+                    # Initialize LLM handler
+                    llm = LLMHandler()
+
+                    # Generate the workout plan
+                    fitness_plan = llm.generate_fitness_plan(
+                        user_profile=st.session_state.user_info,
+                        workout_preferences=workout_preferences
+                    )
+
+                    if fitness_plan:
+                        # Create tabs for different views of the workout plan
+                        plan_tabs = st.tabs(["Complete Plan", "Quick Summary", "Audio Guide"])
+
+                        with plan_tabs[0]:
+                            st.markdown("### 📋 Your Complete Workout Plan")
+                            st.markdown(fitness_plan.content)
+
+                        with plan_tabs[1]:
+                            st.markdown("### 🎯 Quick Summary")
+                            summary = llm.summarizer(fitness_plan.content)
+                            if summary:
+                                st.markdown(summary)
+
+                        with plan_tabs[2]:
+                            st.markdown("### 🎧 Audio Guide")
+                            if summary:
+                                audio_html = self.text_to_speech(summary)
+                                st.markdown(audio_html, unsafe_allow_html=True)
+
+                        # Add save/export options
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("Save to Progress Journal"):
+                                self._save_workout_plan(fitness_plan.content)
+                                st.success("Workout plan saved to your progress journal!")
+
+                        with col2:
+                            # Create download button
+                            if fitness_plan.content:
+                                self._create_download_button(fitness_plan.content)
+
             except Exception as e:
-                logger.error(f"Error in workout tab: {e}")
-                st.error("An error occurred while processing your workout. Please try again.")
-    def render_questions_tab(self):
+                logger.error(f"Error generating workout plan: {str(e)}")
+                st.error("An error occurred while generating your workout plan. Please try again.")
+
+    def _save_workout_plan(self, plan_content: str):
+        """Save workout plan to progress journal."""
+        if 'workout_history' not in st.session_state:
+            st.session_state.workout_history = []
+        
+        workout_entry = {
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'plan': plan_content
+        }
+        st.session_state.workout_history.append(workout_entry)
+
+    def _create_download_button(self, plan_content: str):
+        """Create download button for workout plan."""
+        try:
+            # Convert plan to MD format
+            markdown_content = f"""# Your Personal Workout Plan
+            Generated on: {datetime.now().strftime('%Y-%m-%d')}
+            
+            {plan_content}
+            """
+            
+            # Create download button
+            b64 = base64.b64encode(markdown_content.encode()).decode()
+            href = f'<a href="data:text/markdown;base64,{b64}" download="workout_plan.md" class="downloadButton">📥 Download Workout Plan</a>'
+            st.markdown(href, unsafe_allow_html=True)
+        except Exception as e:
+            logger.error(f"Error creating download button: {str(e)}")
+            st.warning("Unable to create download button. Please try again.")
+            # Generate workout routine
+    def display_diet_section(self):
+        """Render workout tab content"""
+        if st.session_state.user_info:
+            self.diet_analyzer.display_diet_analyzer(st.session_state.user_info)
+        else:
+            st.error("Please complete your profile first to use the Diet Analyzer.")
+    def display_questions_section(self):
         """Render questions tab with audio transcription and LLM answers"""
         st.header("Ask your questions here")
         
@@ -351,15 +440,15 @@ class FitAI:
                 # First step: Transcribe audio
                 if st.button("Generate transcript"):
                     with st.spinner("Transcribing your questions..."):
-                        audio_text = self.speech_to_text(audio_file)
+                        transcribed_speech = self.speech_to_text(audio_file)
                         # Store transcribed text in session state
-                        st.session_state.audio_text = audio_text
+                        st.session_state.transcribed_speech = transcribed_speech
                 
                 # Show text area if we have transcribed text
-                if 'audio_text' in st.session_state:
-                    audio_text = st.text_area(
+                if 'transcribed_speech' in st.session_state:
+                    transcribed_speech = st.text_area(
                         "Edit your question",
-                        value=st.session_state.audio_text,
+                        value=st.session_state.transcribed_speech,
                         height=200
                     )
                     
@@ -367,7 +456,7 @@ class FitAI:
                     if st.button("Answer question"):
                         llm = LLMHandler()
                         with st.spinner("Answering the question..."):
-                            response = llm.answer_question(audio_text, st.session_state.user_info)
+                            response = llm.answer_question(transcribed_speech, st.session_state.user_info)
                             st.markdown(response)
                             
         except Exception as e:
@@ -375,18 +464,18 @@ class FitAI:
             st.error("An error occurred while processing your question. Please try again.")
 
     
-    def render_analytics_tab(self):
+    def display_analytics_section(self):
         """Render analytics dashboard tab content"""
         st.header("Analytics Dashboard")
         
         try:
             if st.session_state.progress_data:
-                df = pd.DataFrame(st.session_state.progress_data)
+                progress_dataframe = pd.DataFrame(st.session_state.progress_data)
                 
                 # Weight Progress Chart
                 st.subheader("Weight Progress")
                 fig_weight = px.line(
-                    df,
+                    progress_dataframe,
                     x="date",
                     y="weight",
                     title="Weight Tracking",
@@ -400,7 +489,7 @@ class FitAI:
                 with col1:
                     st.subheader("Energy Level Distribution")
                     fig_mood = px.pie(
-                        df,
+                        progress_dataframe,
                         names="mood",
                         title="Energy Levels"
                     )
@@ -409,7 +498,7 @@ class FitAI:
                 with col2:
                     st.subheader("Workout Intensity Distribution")
                     fig_intensity = px.pie(
-                        df,
+                        progress_dataframe,
                         names="intensity",
                         title="Workout Intensities"
                     )
@@ -418,7 +507,7 @@ class FitAI:
                 # Export Data Option
                 if st.button("Download Progress Report"):
                     try:
-                        csv = df.to_csv(index=False)
+                        csv = progress_dataframe.to_csv(index=False)
                         b64 = base64.b64encode(csv.encode()).decode()
                         href = f'<a href="data:file/csv;base64,{b64}" download="fitness_progress.csv">Download CSV File</a>'
                         st.markdown(href, unsafe_allow_html=True)
@@ -432,7 +521,7 @@ class FitAI:
         except Exception as e:
             logger.error(f"Error in analytics tab: {e}")
             st.error("An error occurred while loading analytics. Please try again.")
-    def render_progress_journal_tab(self):
+    def display_progress_journal_section(self):
         """Render progress journal tab"""
         st.header("Progress Journal 📔")
         
@@ -440,17 +529,17 @@ class FitAI:
             st.session_state.progress_journal_ui = initialize_progress_journal()
         
         # Create tabs for adding entries and viewing history
-        journal_tabs = st.tabs(["Add Entry", "View Progress"])
+        journal_sections = st.tabs(["Add Entry", "View Progress"])
         
-        with journal_tabs[0]:
-            st.session_state.progress_journal_ui.render_entry_form()
+        with journal_sections[0]:
+            st.session_state.progress_journal_ui.display_entry_form()
         
-        with journal_tabs[1]:
-            st.session_state.progress_journal_ui.render_progress_view()
+        with journal_sections[1]:
+            st.session_state.progress_journal_ui.display_progress_view()
 if __name__ == "__main__":
     try:
-        app = FitAI()
-        app.run()
+        app = FitnessCoachApp()
+        app.start_application()
     except Exception as e:
         logger.error(f"Application error: {e}")
         st.error("An unexpected error occurred. Please refresh the page.")

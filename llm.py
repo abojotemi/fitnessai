@@ -4,7 +4,11 @@ from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_community.cache import SQLiteCache
 from langchain.globals import set_llm_cache
 import streamlit as st
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set up SQLite cache
 set_llm_cache(SQLiteCache(database_path=".langchain.db"))
@@ -16,38 +20,82 @@ class LLMHandler:
             temperature=0.7,
         )
     
-    def render_llm(self, _input_data) -> str:
-        """Generate personalized fitness plan."""
+    def generate_fitness_plan(self, user_profile, workout_preferences=None) -> str:
+        """
+        Generate personalized fitness plan.
+        
+        Args:
+            user_profile: UserInfo object containing basic user information
+            workout_preferences: Optional dict containing workout-specific preferences
+        
+        Returns:
+            str: Generated fitness plan
+        """
+        # Base system message
+        system_message = """You are a professional fitness trainer whose job is to create 
+        personalized workout plans. You should provide detailed, safe, and effective workout 
+        routines based on the user's profile and preferences. Include specific exercises, 
+        sets, reps, rest periods, and form guidance."""
+
+        # Base user profile template
+        base_profile = """
+        User Profile:
+        - Name: {name}
+        - Age: {age}
+        - Sex: {sex}
+        - Weight: {weight}
+        - Height: {height}
+        - Goals: {goals}
+        - Country: {country}
+        """
+
+        # Add workout preferences if provided
+        if workout_preferences:
+            preference_template = """
+            Workout Preferences:
+            - Available Equipment: {equipment}
+            - Workout Duration: {duration} minutes
+            - Weekly Frequency: {frequency}
+            - Focus Areas: {focus_areas}
+            - Limitations/Injuries: {limitations}
+            
+            Please provide a detailed workout plan including:
+            1. Weekly schedule breakdown
+            2. Detailed workouts with sets, reps, and rest periods
+            3. Proper warm-up and cool-down routines
+            4. Form guidance for each exercise
+            5. Alternative exercises for each movement
+            6. Progressive overload recommendations
+            7. Safety tips and precautions
+            """
+            # Combine user profile with preferences
+            human_message = base_profile + preference_template
+            # Merge profile and preferences data
+            prompt_data = {**user_profile.model_dump(), **workout_preferences}
+        else:
+            human_message = base_profile
+            prompt_data = user_profile.model_dump()
+
         messages = [
-            (
-                "system",
-                "You are a helpful health assistant whose job is to strictly provides workout regime, diet (based on their locale) and health advice based on the information provided by the human.",
-            ),
-            ("human", """
-             - Name: {name}
-             - Age: {age}
-             - Sex: {sex}
-             - Weight: {weight}
-             - Height: {height}
-             - Goals: {goals}
-             - Country: {country}
-             """),
+            ("system", system_message),
+            ("human", human_message),
         ]
 
         prompt = ChatPromptTemplate.from_messages(messages)
         chain = prompt | self.llm
         
         try:
-            msg = chain.invoke(_input_data.model_dump())
-            return msg
+            fitness_plan = chain.invoke(prompt_data)
+            return fitness_plan
         except Exception as e:
+            logger.error(f"Error generating fitness plan: {str(e)}")
             st.error(f"Error generating fitness plan: {str(e)}")
             return None
 
     def summarizer(self, _message: str) -> str:
         """Summarize text content."""
         messages = [
-            ('system', "You are an expert text summarizer. Your job is to summarize the user text, while retaining as much information as possible."),
+            ('system', "You are an expert text summarizer. Your job is to create a concise yet informative summary of workout plans, focusing on key exercises and important instructions."),
             ('human', "{msg}"),
         ]
 
@@ -58,36 +106,8 @@ class LLMHandler:
             response = chain.invoke({'msg': _message})
             return response.content
         except Exception as e:
+            logger.error(f"Error summarizing text: {str(e)}")
             st.error(f"Error summarizing text: {str(e)}")
-            return None
-
-    def workout_planner(self, equipment: str, _info) -> str:
-        """Analyzes user diet."""
-        messages = [
-            ('system', "You are a helpful health assistant whose job is to strictly provide information about the food given by the human, you can suggest healthier alternatives or things to add to make it healthier for people that fit the user's  on the user information"),
-            ('human', """Food: {msg}
-             - Name: {name}
-             - Age: {age}
-             - Sex: {sex}
-             - Weight: {weight}
-             - Height: {height}
-             - Goals: {goals}
-             """),
-        ]
-
-        prompt = ChatPromptTemplate.from_messages(messages)
-        chain = prompt | self.llm
-        
-        try:
-            info_copy = _info.model_dump().copy()
-            info_copy.update({'msg': equipment})
-            if 'country' in info_copy:
-                del info_copy['country']
-            
-            response = chain.invoke(info_copy)
-            return response.content
-        except Exception as e:
-            st.error(f"Error generating workout plan: {str(e)}")
             return None
 
     def answer_question(self, query: str, info):
