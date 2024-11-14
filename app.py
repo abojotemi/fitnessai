@@ -1,123 +1,24 @@
+# app.py
 import streamlit as st
 import plotly.express as px
+from streamlit_option_menu import option_menu
 from datetime import datetime
 import pandas as pd
 import pycountry
+from pydantic import ValidationError
 import base64
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, ValidationError
-from dataclasses import dataclass
 import logging
-import json
+from config import AppConfig, UserInfo
+from session_state import SessionState
+from components import UIComponents
+from utils import text_to_speech, speech_to_text
 from chat_logic import DietAnalyzer
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
-from gtts import gTTS
-import re
-import io
-import assemblyai as aai
-import os
-from dotenv import load_dotenv
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Constants
-@dataclass
-class AppConfig:
-    VALID_IMAGE_TYPES: tuple = ("png", "jpg", "jpeg", "gif", "webp")
-    MAX_IMAGE_SIZE: int = 10 * 1024 * 1024 
-    DEFAULT_WEIGHT: float = 30.0
-    DEFAULT_HEIGHT: float = 120.0
-    DEFAULT_AGE: int = 10
-
-class UserInfo(BaseModel):
-    """User profile data model with validation"""
-    name: str = Field(min_length=3, max_length=30)
-    age: int = Field(gt=10)
-    sex: str = Field(min_length=3)
-    weight: float = Field(ge=30)
-    height: float = Field(ge=120)
-    goals: str = Field(min_length=5)
-    country: str = Field(min_length=3)
-
-class SessionState:
-    """Manage Streamlit session state"""
-    @staticmethod
-    def init_session_state():
-        """Initialize session state variables if they don't exist"""
-        if 'profile_completed' not in st.session_state:
-            st.session_state.profile_completed = False
-        if 'user_info' not in st.session_state:
-            st.session_state.user_info = None
-        if 'progress_data' not in st.session_state:
-            st.session_state.progress_data = []
-        if 'workout_history' not in st.session_state:
-            st.session_state.workout_history = []
-
-    @staticmethod
-    def save_progress_data():
-        """Save progress data to local storage"""
-        try:
-            with open('progress_data.json', 'w') as f:
-                json.dump(st.session_state.progress_data, f)
-        except Exception as e:
-            logger.error(f"Error saving progress data: {e}")
-
-    @staticmethod
-    def load_progress_data():
-        """Load progress data from local storage"""
-        try:
-            with open('progress_data.json', 'r') as f:
-                st.session_state.progress_data = json.load(f)
-        except FileNotFoundError:
-            st.session_state.progress_data = []
-        except Exception as e:
-            logger.error(f"Error loading progress data: {e}")
-            st.session_state.progress_data = []
-
-class UIComponents:
-    """UI Component handlers"""
-    @staticmethod
-    def setup_page():
-        """Configure page settings and styling"""
-        st.set_page_config(
-            page_title="Fit AI",
-            page_icon="💪",
-            layout="wide",
-            initial_sidebar_state="collapsed"
-        )
-        
-        st.markdown("""
-            <style>
-            .stButton>button {
-                background-color: #0066cc;
-                color: white;
-                border-radius: 5px;
-                padding: 10px 20px;
-                transition: all 0.3s ease;
-            }
-            .stButton>button:hover {
-                background-color: #0052a3;
-                transform: translateY(-2px);
-            }
-            .metric-card {
-                background-color: #f0f2f6;
-                padding: 20px;
-                border-radius: 10px;
-                text-align: center;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .graph-container {
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            </style>
-        """, unsafe_allow_html=True)
 
 class FitnessCoachApp:
     """Main application class"""
@@ -126,156 +27,116 @@ class FitnessCoachApp:
         SessionState.init_session_state()
         SessionState.load_progress_data()
         self.ui = UIComponents()
-        self.diet_analyzer = DietAnalyzer() 
-    def remove_markdown_formatting(self, text):
-        """Remove common Markdown symbols using regular expressions"""
-        # Remove headings (e.g., # Heading)
-        text = re.sub(r'#', '', text)
-        # Remove emphasis (e.g., **bold** or *italic*)
-        text = re.sub(r'\*{1,2}', '', text)
-        # Remove underscores (e.g., _italic_)
-        text = re.sub(r'_', '', text)
-        # Remove links (e.g., [text](url))
-        text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
-        # Remove extra spaces
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
+        self.diet_analyzer = DietAnalyzer()
 
-    def speech_to_text(self, audio_file):
-
-        aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
-        transcriber = aai.Transcriber()
-
-        transcript = transcriber.transcribe(audio_file)
-        return transcript.text
-    def text_to_speech(self,text):
-        """Convert text to speech and return the audio player HTML"""
-        # Create gTTS object
-        tts = gTTS(text=self.remove_markdown_formatting(text), lang='en')
-        
-        # Create a BytesIO object and write the audio to it
-        audio_fp = io.BytesIO()
-        tts.write_to_fp(audio_fp)
-        
-        # Rewind the BytesIO object to the beginning
-        audio_fp.seek(0)
-        
-        # Encode the audio content to base64
-        audio_str = base64.b64encode(audio_fp.read()).decode()
-        
-        # Generate HTML audio player
-        audio_html = f'''
-            <audio controls autoplay>
-                <source src="data:audio/mp3;base64,{audio_str}" type="audio/mp3">
-            </audio>
-        '''
-        
-        return audio_html
-        
     def start_application(self):
         """Main application entry point"""
         self.ui.setup_page()
         st.title("🏋️‍♂️ Fit AI - Your Personal Fitness Coach")
         
-        # Create tabs
-        tabs = st.tabs(["Profile", "Generate Workout routine", "Diet analyzer", "Questions", "Progress Journal", "Analytics"])
-        
-        # Render appropriate tab content
-        with tabs[0]:
+        options = ["Profile", "Generate Workout", "Diet analyzer", "Questions", "Progress Journal", "Analytics"]
+        selected = option_menu(
+            menu_title=None,
+            options=options,
+            icons=['person', 'book', 'egg-fried', 'patch-question-fill', 'journal', 'graph-up-arrow'],
+            default_index=0,
+            orientation="horizontal",
+        )
+
+        if selected == 'Profile':
             self.display_profile_section()
             
         if st.session_state.profile_completed:
-            with tabs[1]:
+            if selected == options[1]:
                 self.display_workout_section()
-            with tabs[2]:
+            if selected == options[2]:
                 self.display_diet_section()
-            with tabs[3]:
+            if selected == options[3]:
                 self.display_questions_section()
-            with tabs[4]:
+            if selected == options[4]:
                 self.display_progress_journal_section()
-            with tabs[5]:
+            if selected == options[5]:
                 self.display_analytics_section()
         else:
-            for tab in tabs[1:]:
-                with tab:
+            for option in options[1:]:
+                if selected == option:
                     st.info("Please complete your profile first.")
-
     def display_profile_section(self):
-        """Render profile tab content"""
-        st.header("Your Profile")
-        
-        try:
-            with st.form("profile_form"):
-                name = st.text_input(
-                    "Name",
-                    value=st.session_state.user_info.name if st.session_state.user_info else "",
-                    help="Enter your full name (3-30 characters)"
-                )
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    age = st.number_input(
-                        "Age",
-                        min_value=self.config.DEFAULT_AGE,
-                        value=st.session_state.user_info.age if st.session_state.user_info else self.config.DEFAULT_AGE
+            """Render profile tab content"""
+            st.header("Your Profile")
+            
+            try:
+                with st.form("profile_form"):
+                    name = st.text_input(
+                        "Name",
+                        value=st.session_state.user_info.name if st.session_state.user_info else "",
+                        help="Enter your full name (3-30 characters)"
                     )
-                    weight = st.number_input(
-                        "Weight (kg)",
-                        min_value=self.config.DEFAULT_WEIGHT,
-                        value=st.session_state.user_info.weight if st.session_state.user_info else self.config.DEFAULT_WEIGHT
-                    )
-                
-                with col2:
-                    sex = st.selectbox(
-                        "Sex",
-                        options=["Male", "Female", "Other"],
-                        index=["Male", "Female", "Other"].index(st.session_state.user_info.sex) if st.session_state.user_info else 0
-                    )
-                    height = st.number_input(
-                        "Height (cm)",
-                        min_value=self.config.DEFAULT_HEIGHT,
-                        value=st.session_state.user_info.height if st.session_state.user_info else self.config.DEFAULT_HEIGHT
-                    )
-                
-                countries = [country.name for country in pycountry.countries]
-                country = st.selectbox(
-                    "Country",
-                    options=countries,
-                    index=countries.index(st.session_state.user_info.country) if st.session_state.user_info else 234
-                )
-                
-                goals = st.text_area(
-                    "Fitness Goals",
-                    value=st.session_state.user_info.goals if st.session_state.user_info else "",
-                    help="Describe your fitness goals (minimum 5 characters)"
-                )
-                
-                submit = st.form_submit_button("Save Profile")
-                
-                if submit:
-                    try:
-                        info = UserInfo(
-                            name=name,
-                            age=age,
-                            sex=sex,
-                            weight=weight,
-                            height=height,
-                            goals=goals,
-                            country=country
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        age = st.number_input(
+                            "Age",
+                            min_value=self.config.DEFAULT_AGE,
+                            value=st.session_state.user_info.age if st.session_state.user_info else self.config.DEFAULT_AGE
                         )
-                        st.session_state.user_info = info
-                        st.session_state.profile_completed = True
-                        st.success("Profile saved successfully! 🎉")
-                        st.balloons()
-                    except ValidationError as e:
-                        st.error(f"Please check your inputs: {str(e)}")
-                    except Exception as e:
-                        logger.error(f"Error saving profile: {e}")
-                        st.error("An unexpected error occurred. Please try again.")
-        
-        except Exception as e:
-            logger.error(f"Error rendering profile tab: {e}")
-            st.error("An error occurred while loading the profile form. Please refresh the page.")
+                        weight = st.number_input(
+                            "Weight (kg)",
+                            min_value=self.config.DEFAULT_WEIGHT,
+                            value=st.session_state.user_info.weight if st.session_state.user_info else self.config.DEFAULT_WEIGHT
+                        )
+                    
+                    with col2:
+                        sex = st.selectbox(
+                            "Sex",
+                            options=["Male", "Female", "Other"],
+                            index=["Male", "Female", "Other"].index(st.session_state.user_info.sex) if st.session_state.user_info else 0
+                        )
+                        height = st.number_input(
+                            "Height (cm)",
+                            min_value=self.config.DEFAULT_HEIGHT,
+                            value=st.session_state.user_info.height if st.session_state.user_info else self.config.DEFAULT_HEIGHT
+                        )
+                    
+                    countries = [country.name for country in pycountry.countries]
+                    country = st.selectbox(
+                        "Country",
+                        options=countries,
+                        index=countries.index(st.session_state.user_info.country) if st.session_state.user_info else 234
+                    )
+                    
+                    goals = st.text_area(
+                        "Fitness Goals",
+                        value=st.session_state.user_info.goals if st.session_state.user_info else "",
+                        help="Describe your fitness goals (minimum 5 characters)"
+                    )
+                    
+                    submit = st.form_submit_button("Save Profile")
+                    
+                    if submit:
+                        try:
+                            info = UserInfo(
+                                name=name,
+                                age=age,
+                                sex=sex,
+                                weight=weight,
+                                height=height,
+                                goals=goals,
+                                country=country
+                            )
+                            st.session_state.user_info = info
+                            st.session_state.profile_completed = True
+                            st.success("Profile saved successfully! 🎉")
+                            st.balloons()
+                        except ValidationError as e:
+                            st.error(f"Please check your inputs: {str(e)}")
+                        except Exception as e:
+                            logger.error(f"Error saving profile: {e}")
+                            st.error("An unexpected error occurred. Please try again.")
+            
+            except Exception as e:
+                logger.error(f"Error rendering profile tab: {e}")
+                st.error("An error occurred while loading the profile form. Please refresh the page.")
 
 
     def display_workout_section(self):
@@ -373,7 +234,7 @@ class FitnessCoachApp:
                         with plan_tabs[2]:
                             st.markdown("### 🎧 Audio Guide")
                             if summary:
-                                audio_html = self.text_to_speech(summary)
+                                audio_html = text_to_speech(summary)
                                 st.markdown(audio_html, unsafe_allow_html=True)
 
                         # Add save/export options
@@ -429,41 +290,67 @@ class FitnessCoachApp:
             st.error("Please complete your profile first to use the Diet Analyzer.")
             logger.error("Please complete your profile first to use the Diet Analyzer.")
     def display_questions_section(self):
-        """Render questions tab with audio transcription and LLM answers"""
-        st.header("Ask your questions here")
+        """Render questions tab with enhanced features"""
+        st.header("Ask Your Fitness Questions 💪")
         
         try:
-            audio_file = st.file_uploader("Upload your questions here (Audio file)", type=("mp3", "wav", "m4a"))
+            # Text input for questions
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                question = st.text_area(
+                    "Type your fitness question here",
+                    help="Ask anything about workouts, nutrition, or general fitness advice",
+                    placeholder="e.g., How can I improve my squat form?"
+                )
             
+            with col2:
+                st.write("Or")
+                audio_file = st.file_uploader(
+                    "Upload audio question",
+                    type=("mp3", "wav", "m4a"),
+                    help="Record and upload your question as audio"
+                )
+
             if audio_file:
                 st.audio(audio_file)
-                
-                # First step: Transcribe audio
-                if st.button("Generate transcript"):
-                    with st.spinner("Transcribing your questions..."):
-                        transcribed_speech = self.speech_to_text(audio_file)
-                        # Store transcribed text in session state
-                        st.session_state.transcribed_speech = transcribed_speech
-                
-                # Show text area if we have transcribed text
-                if 'transcribed_speech' in st.session_state:
-                    transcribed_speech = st.text_area(
-                        "Edit your question",
-                        value=st.session_state.transcribed_speech,
-                        height=200
-                    )
-                    
-                    # Second step: Generate answer
-                    if st.button("Answer question"):
-                        llm = LLMHandler()
-                        with st.spinner("Answering the question..."):
-                            response = llm.answer_question(transcribed_speech, st.session_state.user_info)
-                            st.markdown(response)
-                            
-        except Exception as e:
-            logger.error(f"Error in questions tab: {str(e)}")
-            st.error("An error occurred while processing your question. Please try again.")
+                if st.button("Transcribe Audio"):
+                    with st.spinner("Transcribing your question..."):
+                        question = speech_to_text(audio_file)
+                        st.session_state.transcribed_question = question
+                        st.write("Transcribed question:", question)
 
+            # Process question
+            if st.button("Get Answer", type="primary") and (question or st.session_state.get('transcribed_question')):
+                with st.spinner("Analyzing your question..."):
+                    # Initialize LLM handler
+                    llm = LLMHandler()
+                    
+                    # Get the final question text
+                    final_question = question or st.session_state.get('transcribed_question')
+                    
+                    # Generate answer
+                    response = llm.answer_question(final_question, st.session_state.user_info)
+                    
+                    if response:
+                        # Display answer
+                        st.markdown(response)
+                        
+                        # Generate and display follow-up questions
+                        follow_ups = llm.get_follow_up_questions(final_question, response)
+                        if follow_ups:
+                            st.markdown("### Related Questions You Might Want to Ask:")
+                            for i, q in enumerate(follow_ups, 1):
+                                if st.button(f"🔄 {q}", key=f"follow_up_{i}"):
+                                    st.session_state.transcribed_question = q
+                        
+                        # Audio option
+                        if st.button("🔊 Listen to the answer"):
+                            audio_html = text_to_speech(response)
+                            st.markdown(audio_html, unsafe_allow_html=True)
+
+        except Exception as e:
+            logger.error(f"Error in questions section: {str(e)}")
+            st.error("An error occurred while processing your question. Please try again.")
     
     def display_analytics_section(self):
         """Render analytics dashboard tab content"""
@@ -537,6 +424,7 @@ class FitnessCoachApp:
         
         with journal_sections[1]:
             st.session_state.progress_journal_ui.display_progress_view()
+
 if __name__ == "__main__":
     try:
         app = FitnessCoachApp()
