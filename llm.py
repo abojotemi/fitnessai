@@ -138,3 +138,32 @@ class LLMHandler:
         except Exception as e:
             st.error(f"Error generating workout plan: {str(e)}")
             return None
+    
+     
+    def analyze_diet(self, food_items, user_info):
+        
+        messages = ["""You are a helpful health assistant whose job is to strictly provide information about the food or fruits given by me.
+        You can suggest healthier alternatives or things to add to make it healthier for people that fit my information?
+        Food information: {food_items}
+        User Information:
+        - Name: {name}
+        - Age: {age}
+        - Sex: {sex}
+        - Weight: {weight}
+        - Height: {height}
+        - Goals: {goals}
+        - Country: {country}
+        """]
+        prompt = ChatPromptTemplate.from_messages(messages)
+        try:
+            info_copy = user_info.model_dump().copy()
+            info_copy.update({'food_items': food_items['label']})
+            chain = prompt | self.llm
+            response = chain.invoke(info_copy)
+            return response.content
+        except Exception as e:
+            st.error(f"Error analyzing diet: {str(e)}")
+            print(f'Error at llm: {str(e)}')
+            return None
+        
+        

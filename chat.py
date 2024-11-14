@@ -1,76 +1,128 @@
-
-from clarifai.client.model import Model
+# File Path: image_captioning_app.py
+import requests
 from PIL import Image
-from io import BytesIO
 import streamlit as st
+from dotenv import load_dotenv
+import os
+import tempfile
 import logging
+from pathlib import Path
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Your PAT (Personal Access Token) can be found in the Account's Security section
-# Specify the correct user_id/app_id pairings
-# Since you're making inferences outside your app's scope
-#USER_ID = "clarifai"
-#APP_ID = "main"
+# Load environment variables
+load_dotenv()
+API_KEY = os.getenv("HF_API_KEY")
+if not API_KEY:
+    raise ValueError("HF_API_KEY not found in environment variables")
 
-# You can set the model using model URL or model ID.
-# Change these to whatever model you want to use
-# eg : MODEL_ID = "general-english-image-caption-blip"
-# You can also set a particular model version by specifying the  version ID
-# eg: MODEL_VERSION_ID = "cdb690f13e62470ea6723642044f95e4"
-#  Model class objects can be inititalised by providing its URL or also by defining respective user_id, app_id and model_id
+# Update the Hugging Face model API details (Replace with your new model URL)
+API_URL = "https://api-inference.huggingface.co/models/nateraw/food"
+headers = {"Authorization": f"Bearer {API_KEY}"}
 
-# eg : model = Model(user_id="clarifai", app_id="main", model_id=MODEL_ID)
-model_url = (
-    "https://clarifai.com/clarifai/main/models/food-item-v1-recognition"
-)
-# image_url = "https://s3.amazonaws.com/samples.clarifai.com/featured-models/image-captioning-statue-of-liberty.jpeg"
+def query_image(image_path):
+    """
+    Query the Hugging Face API with an image file.
+    
+    Args:
+        image_path (str): Path to the image file
+        
+    Returns:
+        dict: API response
+        
+    Raises:
+        requests.exceptions.RequestException: If API call fails
+    """
+    try:
+        with open(image_path, "rb") as file:
+            data = file.read()
+            response = requests.post(
+                API_URL,
+                headers=headers,
+                data=data,  # Sending raw bytes
+                timeout=10
+            )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API request failed: {str(e)}")
+        logger.error(f"Response content: {response.content if 'response' in locals() else 'No response'}")
+        raise
 
-# The Predict API also accepts data through URL, Filepath & Bytes.
-# Example for predict by filepath:
-# model_prediction = Model(model_url).predict_by_filepath(filepath, input_type="text")
-
-# Example for predict by bytes:
-# model_prediction = Model(model_url).predict_by_bytes(image_bytes, input_type="text")
-# Step 1: Upload the image
+def save_uploadedfile(uploadedfile):
+    """
+    Safely save uploaded file to a temporary directory.
+    
+    Args:
+        uploadedfile: Streamlit UploadedFile object
+        
+    Returns:
+        Path: Path to saved temporary file
+    """
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploadedfile.name).suffix) as tmp_file:
+            tmp_file.write(uploadedfile.getvalue())
+            return Path(tmp_file.name)
+    except Exception as e:
+        logger.error(f"Failed to save uploaded file: {str(e)}")
+        raise
 
 def predict_food(uploaded_file):
-    # Read the uploaded file as binary
-    image_bytes = uploaded_file.read()  # This reads the file in binary mode
-    with st.spinner("Getting items..."):
-        model_prediction = Model(url=model_url, pat="82a56de8938f4b8e899e39568b45ae34").predict_by_bytes(
-            image_bytes, input_type="image"
-        )
-    # Get the output
-    ans = model_prediction.outputs[0].data.concepts[:5]
-    return [(i.name,i.value) for i in ans]
+    if uploaded_file is not None:
+        # Check file size (10MB limit)
+        if uploaded_file.size > 10 * 1024 * 1024:
+            st.error("File size too large. Please upload an image smaller than 10MB.")
+            return
 
+        try:
+            # Save image to temporary file
+            with st.spinner("Processing image..."):
+                temp_path = save_uploadedfile(uploaded_file)
+                
+                try:
+                    # Query the API
+                    result = query_image(str(temp_path))
+                    
+                    # Adjust based on the new model's response format
+                    caption = parse_response(result)
+                    st.success("Image analyzed successfully!")
+                    st.success(f"**Food**: {caption['label']}")
+                    return caption
+                    
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Error calling the API: {str(e)}")
+                    logger.error(f"Full error details: {str(e)}")
+                finally:
+                    # Clean up temporary file
+                    temp_path.unlink()
+                    
+        except Exception as e:
+            st.error(f"Error processing image: {str(e)}")
 
-
-
-
-def analyze_diet(food_items, user_info):
-    
-    prompt = f"""You are a helpful health assistant whose job is to strictly provide information about the food or fruits given by me.
-    The format of the my input will be (food_item, probability_food_item_is_present). If the probability is lower than 0.25. Ignore it.
-    you can suggest healthier alternatives or things to add to make it healthier for people that fit my information?
-    Food information: {str(food_items)}
-    User Information:
-    - Name: {user_info.name}
-    - Age: {user_info.age}
-    - Sex: {user_info.sex}
-    - Weight: {user_info.weight}
-    - Height: {user_info.height}
-    - Goals: {user_info.goals}
-    - Country: {user_info.country}
+def parse_response(result):
     """
-    # You can set the model using model URL or model ID.
-    model_url="https://clarifai.com/openai/chat-completion/models/gpt-4o"
+    Parse the API response based on the expected output format of the new model.
+    
+    Args:
+        result (dict): The API response from the model
+        
+    Returns:
+        str: The caption or result text
+    """
+    try:
+        # Check if result is a list of dictionaries
+        if isinstance(result, list) and len(result) > 0:
+            # Extract caption from list if possible
+            return result[0]
+        # Check if result is a dictionary
+        elif isinstance(result, dict):
+            # Extract caption directly
+            return result
+        else:
+            return "Unexpected response format."
+    except Exception as e:
+        logger.error(f"Failed to parse response: {str(e)}")
+        return "Failed to parse response."
 
-
-    # Model Predict
-    with st.spinner("Analyzing Diet..."):
-        model_prediction = Model(url=model_url,pat="82a56de8938f4b8e899e39568b45ae34").predict_by_bytes(prompt.encode(), input_type="text")
-
-    return (model_prediction.outputs[0].data.text.raw)

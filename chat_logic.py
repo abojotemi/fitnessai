@@ -1,11 +1,16 @@
 import time
-from chat import analyze_diet, predict_food
+from chat import predict_food
+from llm import LLMHandler
 import streamlit as st
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class DietAnalyzer:
     """Diet analysis component for FitnessCoachApp"""
     def __init__(self):
         # Initialize session states for diet analyzer
+        self.llm = LLMHandler()
         if "diet_messages" not in st.session_state:
             st.session_state.diet_messages = [{
                 "role": "assistant",
@@ -39,10 +44,11 @@ class DietAnalyzer:
         try:
             prediction = predict_food(image)
             if prediction:
-                analysis = analyze_diet(prediction, user_info)
+                analysis = self.llm.analyze_diet(prediction, user_info)
                 return analysis
             return None
         except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
             st.error(f"Error processing image: {str(e)}")
             return None
 
