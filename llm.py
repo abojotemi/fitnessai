@@ -48,7 +48,7 @@ class LLMHandler:
         system_message = """You are a professional fitness trainer whose job is to create 
         personalized workout plans. You should provide detailed, safe, and effective workout 
         routines based on the user's profile and preferences. Include specific exercises, 
-        sets, reps, rest periods, and form guidance."""
+        sets, reps, rest periods, and form guidance. Make it a maximum of 300 words"""
 
         # Base user profile template
         base_profile = """
@@ -108,7 +108,7 @@ class LLMHandler:
     def summarizer(self, _message: str) -> str:
         """Summarize text content."""
         messages = [
-            ('system', "You are an expert text summarizer. Your job is to create a concise yet informative summary of workout plans, focusing on key exercises and important instructions."),
+            ('system', "You are an expert text summarizer. Your job is to create a concise yet informative summary of workout plans, maximum of 75 words, focusing on key exercises and important instructions."),
             ('human', "{msg}"),
         ]
 
@@ -140,7 +140,7 @@ class LLMHandler:
         5. Use clear, accessible language while maintaining expertise
         6. Break down complex concepts into digestible parts
         
-        Remember the user's profile information to personalize your response."""
+        Remember the user's profile information to personalize your response. Make your answer short and straight to the point."""
 
         self.human_template = """User Profile:
         - Name: {name}
@@ -290,7 +290,8 @@ class LLMHandler:
     def analyze_diet(self, food_items, user_info):
         
         messages = ["""You are a helpful health assistant whose job is to strictly provide information about the food or fruits given by me.
-        You can suggest healthier alternatives or things to add to make it healthier for people that fit my information?
+        You can suggest healthier alternatives or things to add to make it healthier for people that fit my information? You are to answer with a maximum of 250 words.
+        
         Food information: {food_items}
         User Information:
         - Name: {name}

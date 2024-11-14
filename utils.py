@@ -62,7 +62,7 @@ class TTSHandler:
     def __init__(self):
         self.cache_dir = Path(tempfile.gettempdir()) / "tts_cache"
         self.cache_dir.mkdir(exist_ok=True)
-        self.chunk_size = 500  # Maximum characters per chunk
+        self.chunk_size = 500 # Maximum characters per chunk
         
     def _get_cache_path(self, text: str) -> Path:
         """Generate a cache file path based on text content"""

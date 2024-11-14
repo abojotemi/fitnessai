@@ -1,3 +1,4 @@
+from pathlib import Path
 import streamlit as st
 import plotly.express as px
 from streamlit_option_menu import option_menu
@@ -141,6 +142,15 @@ class FitnessCoachApp:
     def display_workout_section(self):
         """Render workout tab content with enhanced functionality and error handling."""
         st.header("Generate Your Workout Routine")
+        # Initialize session state variables if they don't exist
+        if 'workout_plan' not in st.session_state:
+            st.session_state.workout_plan = None
+        if 'workout_summary' not in st.session_state:
+            st.session_state.workout_summary = None
+        if 'audio_html' not in st.session_state:
+            st.session_state.audio_html = None
+        if 'cache_path' not in st.session_state:
+            st.session_state.cache_path = None
 
         # Equipment selection
         equipment_options = [
@@ -218,38 +228,41 @@ class FitnessCoachApp:
 
                     if fitness_plan:
                         # Create tabs for different views of the workout plan
+                        st.session_state.workout_plan = fitness_plan.content
+                        st.session_state.workout_summary = llm.summarizer(fitness_plan.content)
+                        if st.session_state.workout_summary:
+                            tts_handler = TTSHandler()
+                            st.session_state.audio_html = tts_handler.text_to_speech(st.session_state.workout_summary)
+                            st.session_state.cache_path = tts_handler._get_cache_path(
+                                tts_handler._clean_text(st.session_state.workout_summary)
+                            )
+                if st.session_state.workout_plan:
                         plan_tabs = st.tabs(["Complete Plan", "Quick Summary", "Audio Guide"])
-
                         with plan_tabs[0]:
                             st.markdown("### 📋 Your Complete Workout Plan")
-                            st.markdown(fitness_plan.content)
+                            st.markdown(st.session_state.workout_plan)
 
                         with plan_tabs[1]:
                             st.markdown("### 🎯 Quick Summary")
-                            summary = llm.summarizer(fitness_plan.content)
-                            if summary:
-                                st.markdown(summary)
+                            if st.session_state.workout_summary:
+                                st.markdown(st.session_state.workout_summary)
+
 
                         with plan_tabs[2]:
                             st.markdown("### 🎧 Audio Guide")
-                            if summary:
-                                tts_handler = TTSHandler()
-                                audio_html = tts_handler.text_to_speech(summary)
-                                if audio_html:
-                                    st.markdown(audio_html, unsafe_allow_html=True)
+                            if st.session_state.audio_html:
+                                st.markdown(st.session_state.audio_html, unsafe_allow_html=True)
                                 
                                 # Add download button for audio
-                                if st.button("📥 Download Audio Guide"):
-                                    cache_path = tts_handler._get_cache_path(tts_handler._clean_text(summary))
-                                    if cache_path.exists():
-                                        with open(cache_path, 'rb') as f:
-                                            audio_bytes = f.read()
-                                            st.download_button(
-                                                label="Download MP3",
-                                                data=audio_bytes,
-                                                file_name="workout_guide.mp3",
-                                                mime="audio/mp3"
-                                            )
+                                if st.session_state.cache_path and Path(st.session_state.cache_path).exists():
+                                    with open(st.session_state.cache_path, 'rb') as f:
+                                        audio_bytes = f.read()
+                                        st.download_button(
+                                            label="📥 Download Audio Guide",
+                                            data=audio_bytes,
+                                            file_name="workout_guide.mp3",
+                                            mime="audio/mp3"
+                                        )
             except Exception as e:
                 logger.error(f"Error generating workout plan: {str(e)}")
                 st.error("An error occurred while generating your workout plan. Please try again.")
