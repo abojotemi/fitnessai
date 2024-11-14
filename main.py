@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 from dataclasses import dataclass
 import logging
 import json
-from chat_mod import DietAnalyzer
+from chat_logic import DietAnalyzer
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
 from gtts import gTTS
