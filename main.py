@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import plotly.express as px
 from streamlit_option_menu import option_menu
@@ -11,7 +10,7 @@ import logging
 from config import AppConfig, UserInfo
 from session_state import SessionState
 from components import UIComponents
-from utils import text_to_speech, speech_to_text
+from utils import TTSHandler, text_to_speech, speech_to_text
 from chat_logic import DietAnalyzer
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
@@ -234,54 +233,27 @@ class FitnessCoachApp:
                         with plan_tabs[2]:
                             st.markdown("### 🎧 Audio Guide")
                             if summary:
-                                audio_html = text_to_speech(summary)
-                                st.markdown(audio_html, unsafe_allow_html=True)
-
-                        # Add save/export options
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("Save to Progress Journal"):
-                                self._save_workout_plan(fitness_plan.content)
-                                st.success("Workout plan saved to your progress journal!")
-
-                        with col2:
-                            # Create download button
-                            if fitness_plan.content:
-                                self._create_download_button(fitness_plan.content)
-
+                                tts_handler = TTSHandler()
+                                audio_html = tts_handler.text_to_speech(summary)
+                                if audio_html:
+                                    st.markdown(audio_html, unsafe_allow_html=True)
+                                
+                                # Add download button for audio
+                                if st.button("📥 Download Audio Guide"):
+                                    cache_path = tts_handler._get_cache_path(tts_handler._clean_text(summary))
+                                    if cache_path.exists():
+                                        with open(cache_path, 'rb') as f:
+                                            audio_bytes = f.read()
+                                            st.download_button(
+                                                label="Download MP3",
+                                                data=audio_bytes,
+                                                file_name="workout_guide.mp3",
+                                                mime="audio/mp3"
+                                            )
             except Exception as e:
                 logger.error(f"Error generating workout plan: {str(e)}")
                 st.error("An error occurred while generating your workout plan. Please try again.")
 
-    def _save_workout_plan(self, plan_content: str):
-        """Save workout plan to progress journal."""
-        if 'workout_history' not in st.session_state:
-            st.session_state.workout_history = []
-        
-        workout_entry = {
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'plan': plan_content
-        }
-        st.session_state.workout_history.append(workout_entry)
-
-    def _create_download_button(self, plan_content: str):
-        """Create download button for workout plan."""
-        try:
-            # Convert plan to MD format
-            markdown_content = f"""# Your Personal Workout Plan
-            Generated on: {datetime.now().strftime('%Y-%m-%d')}
-            
-            {plan_content}
-            """
-            
-            # Create download button
-            b64 = base64.b64encode(markdown_content.encode()).decode()
-            href = f'<a href="data:text/markdown;base64,{b64}" download="workout_plan.md" class="downloadButton">📥 Download Workout Plan</a>'
-            st.markdown(href, unsafe_allow_html=True)
-        except Exception as e:
-            logger.error(f"Error creating download button: {str(e)}")
-            st.warning("Unable to create download button. Please try again.")
-            # Generate workout routine
     def display_diet_section(self):
         """Render workout tab content"""
         if st.session_state.user_info:
@@ -353,62 +325,180 @@ class FitnessCoachApp:
             st.error("An error occurred while processing your question. Please try again.")
     
     def display_analytics_section(self):
-        """Render analytics dashboard tab content"""
-        st.header("Analytics Dashboard")
+        """Render enhanced analytics dashboard tab content"""
+        st.header("Fitness Analytics Dashboard 📊")
         
         try:
             if st.session_state.progress_data:
                 progress_dataframe = pd.DataFrame(st.session_state.progress_data)
+                progress_dataframe['date'] = pd.to_datetime(progress_dataframe['date'])
                 
-                # Weight Progress Chart
-                st.subheader("Weight Progress")
-                fig_weight = px.line(
-                    progress_dataframe,
-                    x="date",
-                    y="weight",
-                    title="Weight Tracking",
-                    labels={"weight": "Weight (kg)", "date": "Date"}
-                )
-                st.plotly_chart(fig_weight, use_container_width=True)
+                # Overview metrics
+                st.subheader("Quick Stats 📈")
+                metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
                 
-                # Mood and Intensity Distribution
+                with metrics_col1:
+                    total_workouts = len(progress_dataframe)
+                    st.metric("Total Workouts", total_workouts)
+                
+                with metrics_col2:
+                    if 'weight' in progress_dataframe.columns:
+                        weight_change = progress_dataframe['weight'].iloc[-1] - progress_dataframe['weight'].iloc[0]
+                        st.metric("Weight Change (kg)", f"{weight_change:.1f}")
+                
+                with metrics_col3:
+                    avg_intensity = progress_dataframe['intensity'].mode()[0]
+                    st.metric("Most Common Intensity", avg_intensity)
+                
+                with metrics_col4:
+                    streak = progress_dataframe['date'].diff().dt.days.eq(1).sum()
+                    st.metric("Current Streak", f"{streak} days")
+
+                # Weight Progress Chart with Moving Average
+                st.subheader("Weight Progress Over Time")
+                if 'weight' in progress_dataframe.columns:
+                    progress_dataframe['MA7_weight'] = progress_dataframe['weight'].rolling(window=7).mean()
+                    
+                    fig_weight = px.line(
+                        progress_dataframe,
+                        x="date",
+                        y=["weight", "MA7_weight"],
+                        title="Weight Tracking with 7-day Moving Average",
+                        labels={
+                            "weight": "Weight (kg)",
+                            "MA7_weight": "7-day Moving Average",
+                            "date": "Date"
+                        }
+                    )
+                    fig_weight.update_layout(hovermode='x unified')
+                    st.plotly_chart(fig_weight, use_container_width=True)
+
+                # Create two columns for charts
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.subheader("Energy Level Distribution")
-                    fig_mood = px.pie(
+                    # Energy Levels Over Time
+                    st.subheader("Energy Level Trends")
+                    mood_mapping = {'Low': 1, 'Medium': 2, 'High': 3}
+                    progress_dataframe['mood_numeric'] = progress_dataframe['mood'].map(mood_mapping)
+                    
+                    fig_mood_trend = px.line(
                         progress_dataframe,
-                        names="mood",
-                        title="Energy Levels"
+                        x="date",
+                        y="mood_numeric",
+                        title="Energy Level Trends",
+                        labels={
+                            "mood_numeric": "Energy Level",
+                            "date": "Date"
+                        }
                     )
-                    st.plotly_chart(fig_mood, use_container_width=True)
-                
+                    fig_mood_trend.update_yaxis(ticktext=['Low', 'Medium', 'High'], tickvals=[1, 2, 3])
+                    st.plotly_chart(fig_mood_trend, use_container_width=True)
+
                 with col2:
+                    # Workout Intensity Distribution
                     st.subheader("Workout Intensity Distribution")
                     fig_intensity = px.pie(
                         progress_dataframe,
                         names="intensity",
-                        title="Workout Intensities"
+                        title="Workout Intensities",
+                        color_discrete_sequence=px.colors.sequential.Viridis
                     )
                     st.plotly_chart(fig_intensity, use_container_width=True)
+
+                # Weekly Progress Summary
+                st.subheader("Weekly Progress Summary")
+                weekly_summary = progress_dataframe.resample('W', on='date').agg({
+                    'weight': 'mean',
+                    'intensity': lambda x: x.mode()[0] if not x.empty else None,
+                    'mood': lambda x: x.mode()[0] if not x.empty else None,
+                    'date': 'count'
+                }).reset_index()
+                weekly_summary.columns = ['Week', 'Avg Weight', 'Common Intensity', 'Common Energy Level', 'Workouts']
                 
-                # Export Data Option
-                if st.button("Download Progress Report"):
-                    try:
-                        csv = progress_dataframe.to_csv(index=False)
-                        b64 = base64.b64encode(csv.encode()).decode()
-                        href = f'<a href="data:file/csv;base64,{b64}" download="fitness_progress.csv">Download CSV File</a>'
-                        st.markdown(href, unsafe_allow_html=True)
-                    except Exception as e:
-                        logger.error(f"Error exporting data: {e}")
-                        st.error("Unable to generate report. Please try again.")
+                st.dataframe(
+                    weekly_summary.style.format({
+                        'Avg Weight': '{:.1f}',
+                        'Workouts': '{:.0f}'
+                    }),
+                    use_container_width=True
+                )
+
+                # Export Options
+                st.subheader("Export Data 📤")
+                col1, col2 = st.columns(2)
                 
+                with col1:
+                    if st.button("Download Raw Data (CSV)"):
+                        try:
+                            csv = progress_dataframe.to_csv(index=False)
+                            b64 = base64.b64encode(csv.encode()).decode()
+                            href = f'<a href="data:file/csv;base64,{b64}" download="fitness_progress.csv">Download CSV File</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                        except Exception as e:
+                            logger.error(f"Error exporting CSV: {e}")
+                            st.error("Unable to generate CSV. Please try again.")
+                
+                with col2:
+                    if st.button("Generate Progress Report"):
+                        try:
+                            report = self._generate_progress_report(progress_dataframe)
+                            b64 = base64.b64encode(report.encode()).decode()
+                            href = f'<a href="data:text/markdown;base64,{b64}" download="progress_report.md">Download Progress Report</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                        except Exception as e:
+                            logger.error(f"Error generating report: {e}")
+                            st.error("Unable to generate report. Please try again.")
+
             else:
                 st.info("No progress data available yet. Start tracking your progress to see analytics!")
-        
+                
+                # Sample dashboard preview
+                    
         except Exception as e:
             logger.error(f"Error in analytics tab: {e}")
             st.error("An error occurred while loading analytics. Please try again.")
+
+    def _generate_progress_report(self, df: pd.DataFrame) -> str:
+        """Generate a detailed progress report in markdown format"""
+        try:
+            latest_weight = df['weight'].iloc[-1]
+            initial_weight = df['weight'].iloc[0]
+            weight_change = latest_weight - initial_weight
+            total_workouts = len(df)
+            avg_intensity = df['intensity'].mode()[0]
+            
+            report = f"""# Fitness Progress Report
+    Generated on: {datetime.now().strftime('%Y-%m-%d')}
+
+    ## Overall Progress
+    - Total Workouts Completed: {total_workouts}
+    - Weight Change: {weight_change:.1f} kg
+    - Most Common Workout Intensity: {avg_intensity}
+
+    ## Weekly Breakdown
+    """
+            # Add weekly summary
+            weekly_data = df.resample('W', on='date').agg({
+                'weight': 'mean',
+                'intensity': lambda x: x.mode()[0] if not x.empty else None,
+                'mood': lambda x: x.mode()[0] if not x.empty else None,
+                'date': 'count'
+            })
+            
+            for week in weekly_data.index:
+                report += f"""
+    ### Week of {week.strftime('%Y-%m-%d')}
+    - Average Weight: {weekly_data.loc[week, 'weight']:.1f} kg
+    - Workouts Completed: {weekly_data.loc[week, 'date']:.0f}
+    - Common Intensity: {weekly_data.loc[week, 'intensity']}
+    - Common Energy Level: {weekly_data.loc[week, 'mood']}
+    """
+            
+            return report
+        except Exception as e:
+            logger.error(f"Error generating progress report: {e}")
+            raise e
     def display_progress_journal_section(self):
         """Render progress journal tab"""
         st.header("Progress Journal 📔")

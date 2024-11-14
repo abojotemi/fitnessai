@@ -1,4 +1,3 @@
-# llm.py
 from typing import Any
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate, PromptTemplate

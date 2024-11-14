@@ -1,4 +1,3 @@
-# config.py
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
 

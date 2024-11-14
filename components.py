@@ -1,4 +1,3 @@
-# ui_components.py
 import streamlit as st
 
 class UIComponents:

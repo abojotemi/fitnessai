@@ -1,5 +1,3 @@
-# progress_journal.py
-
 import streamlit as st
 from datetime import datetime
 import pandas as pd
