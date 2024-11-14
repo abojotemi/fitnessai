@@ -94,6 +94,7 @@ class DietAnalyzer:
                         })
                 else:
                     st.error("Could not analyze the image. Please try another image.")
+                    logger.error("Could not analyze the image. Please try another image.")
                     
                 st.session_state.diet_processing = False
                 st.rerun()

@@ -427,6 +427,7 @@ class FitnessCoachApp:
             self.diet_analyzer.display_diet_analyzer(st.session_state.user_info)
         else:
             st.error("Please complete your profile first to use the Diet Analyzer.")
+            logger.error("Please complete your profile first to use the Diet Analyzer.")
     def display_questions_section(self):
         """Render questions tab with audio transcription and LLM answers"""
         st.header("Ask your questions here")

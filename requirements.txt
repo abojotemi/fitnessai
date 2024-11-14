@@ -1,7 +1,4 @@
 assemblyai==0.35.1
-clarifai==10.10.0
-clarifai-grpc==10.9.11
-clarifai-protocol==0.0.6
 gcloud==0.18.3
 google-ai-generativelanguage==0.6.10
 gTTS==2.5.4
@@ -12,7 +9,6 @@ langchain-community==0.3.5
 langchain-google-genai==2.0.4
 matplotlib-inline==0.1.7
 numpy==1.26.4
-openai==1.54.3
 pandas==2.2.3
 pillow==11.0.0
 plotly==5.24.1
