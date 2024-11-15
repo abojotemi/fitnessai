@@ -54,7 +54,15 @@ def text_to_speech(text):
     '''
     
     return audio_html
-
+def get_audio_duration(audio_file) -> float:
+    """Get duration of audio file in seconds"""
+    try:
+        import librosa
+        audio, sr = librosa.load(audio_file)
+        return librosa.get_duration(y=audio, sr=sr)
+    except Exception as e:
+        logger.error(f"Error getting audio duration: {e}")
+        return 0.0
 
 class TTSHandler:
     """Handles text-to-speech conversion with caching and chunking"""

@@ -7,8 +7,11 @@ import tempfile
 import logging
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any
-
+from typing import Optional, Any
+import time
+import requests
+import streamlit as st
+import json
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,10 +22,116 @@ API_KEY = os.getenv("HF_API_KEY")
 if not API_KEY:
     raise ValueError("HF_API_KEY not found in environment variables")
 
-API_URL = "https://api-inference.huggingface.co/models/nateraw/food"
+# API endpoints
+FOOD_API_URL = "https://api-inference.huggingface.co/models/nateraw/food"
 headers = {"Authorization": f"Bearer {API_KEY}"}
 
-def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_delay: float = 20.0) -> Dict:
+
+starry_api_key = os.environ.get("STARRYAI_API_KEY")
+def create_image(prompt: str) -> int:
+    """Create a new image generation request."""
+    url = "https://api.starryai.com/creations/"
+    
+    payload = {
+        "model": "lyra",
+        "aspectRatio": "square",
+        "highResolution": False,
+        "images": 1,
+        "steps": 20,
+        "initialImageMode": "color",
+        "prompt": prompt
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "X-API-Key": starry_api_key,
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    return json.loads(response.text)['id']
+
+def get_image(creation_id: int, max_attempts: int = 20, initial_delay: float = 5.0) -> Optional[str]:
+    """
+    Poll for the generated image URL with exponential backoff.
+    
+    Args:
+        creation_id: The ID of the creation to check
+        max_attempts: Maximum number of polling attempts
+        initial_delay: Initial delay between polling attempts in seconds
+        
+    Returns:
+        Optional[str]: The image URL if successful, None if not ready after max attempts
+    """
+    url = f"https://api.starryai.com/creations/{creation_id}"
+    headers = {
+        "accept": "application/json",
+        "X-API-Key": starry_api_key
+    }
+    
+    delay = initial_delay
+    
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Check if the image is ready
+            if data['status'] == 'completed' and data['images'] and data['images'][0]['url']:
+                return data['images'][0]['url']
+            
+            # If still in progress, wait and try again
+            if data['status'] == 'in progress':
+                if attempt < max_attempts - 1:  # Don't sleep on the last attempt
+                    time.sleep(delay)
+                    delay = min(delay * 1.5, 30.0)  # Exponential backoff, capped at 30 seconds
+                continue
+                
+            # Handle failed or unexpected status
+            if data['status'] in ['failed', 'expired']:
+                logger.error(f"Image generation failed or expired. Status: {data['status']}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error checking image status (attempt {attempt + 1}/{max_attempts}): {str(e)}")
+            if attempt < max_attempts - 1:
+                time.sleep(delay)
+                delay = min(delay * 1.5, 30.0)
+            continue
+            
+    logger.warning(f"Image not ready after {max_attempts} attempts")
+    return None
+
+def generate_image_from_text(prompt: str) -> Optional[str]:
+    """
+    Generate an image from text with improved error handling and status checking.
+    
+    Args:
+        prompt (str): Text prompt to generate image from
+        
+    Returns:
+        Optional[str]: Generated image URL or None if generation fails
+    """
+    try:
+        # Create the image request
+        creation_id = create_image(prompt)
+        
+        # Poll for the result
+        if st.spinner is not None:  # Check if we're in a Streamlit context
+            with st.spinner(f"🎨 Generating image... This may take up to a minute"):
+                return get_image(creation_id)
+        else:
+            return get_image(creation_id)
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to generate image: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during image generation: {str(e)}")
+        return None
+
+def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_delay: float = 20.0) -> dict:
     """
     Query the Hugging Face API with retry logic for model loading.
     
@@ -44,21 +153,19 @@ def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_
             with open(image_path, "rb") as file:
                 data = file.read()
                 response = requests.post(
-                    API_URL,
+                    FOOD_API_URL,
                     headers=headers,
                     data=data,
-                    timeout=30  # Increased timeout
+                    timeout=30
                 )
                 
             if response.status_code == 503 and "is currently loading" in response.text:
                 estimated_time = response.json().get("estimated_time", retry_delay)
                 logger.info(f"Model is loading. Waiting {estimated_time:.1f} seconds...")
                 
-                # Update progress bar
                 progress_text = "Model is loading... Please wait."
                 progress_bar = st.progress(0, text=progress_text)
                 
-                # Break the waiting time into smaller chunks for progress bar updates
                 chunks = 20
                 chunk_time = estimated_time / chunks
                 for i in range(chunks):
@@ -80,7 +187,7 @@ def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_
                 raise
             
             time.sleep(retry_delay)
-            retry_delay *= 1.5  # Exponential backoff
+            retry_delay *= 1.5
 
 def save_uploadedfile(uploadedfile) -> Optional[Path]:
     """
@@ -100,7 +207,7 @@ def save_uploadedfile(uploadedfile) -> Optional[Path]:
         logger.error(f"Failed to save uploaded file: {str(e)}")
         raise
 
-def predict_food(uploaded_file) -> Optional[Dict]:
+def predict_food(uploaded_file) -> Optional[dict]:
     """
     Process uploaded file and get prediction with improved error handling and user feedback.
     """
@@ -140,7 +247,35 @@ def predict_food(uploaded_file) -> Optional[Dict]:
             logger.error(f"Error processing image: {str(e)}")
             return None
 
-def parse_response(result: Any) -> Optional[Dict]:
+def generate_food_image(prompt: str) -> Optional[bytes]:
+    """
+    Generate a food image from a text prompt with error handling and user feedback.
+    
+    Args:
+        prompt (str): Text description of the food to generate
+        
+    Returns:
+        Optional[bytes]: Generated image data or None if generation fails
+    """
+    try:
+        with st.spinner("🎨 Generating food image..."):
+            image_data = generate_image_from_text(prompt)
+            
+            if image_data:
+                st.success("Image generated successfully!")
+                return image_data
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        st.error("️Error generating image. The service might be temporarily unavailable. Please try again in a few moments.")
+        logger.error(f"Full error details: {str(e)}")
+        return None
+    except Exception as e:
+        st.error(f"Error generating image: {str(e)}")
+        logger.error(f"Error generating image: {str(e)}")
+        return None
+
+def parse_response(result: Any) -> Optional[dict]:
     """
     Parse the API response with improved error handling.
     
@@ -148,7 +283,7 @@ def parse_response(result: Any) -> Optional[Dict]:
         result: The API response from the model
         
     Returns:
-        Optional[Dict]: The parsed response or None if parsing fails
+        Optional[dict]: The parsed response or None if parsing fails
     """
     try:
         # Check if result is a list of dictionaries

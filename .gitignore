@@ -3,5 +3,6 @@ docs/
 .env
 images/ 
 __pycache__/
+data/
 chroma_langchain_db/
 *.db

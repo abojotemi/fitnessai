@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import streamlit as st
 import plotly.express as px
 from streamlit_option_menu import option_menu
@@ -11,10 +12,12 @@ import logging
 from config import AppConfig, UserInfo
 from session_state import SessionState
 from components import UIComponents
-from utils import TTSHandler, text_to_speech, speech_to_text
+from utils import TTSHandler, get_audio_duration, text_to_speech, speech_to_text
 from chat_logic import DietAnalyzer
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
+from analytics_tab import display_analytics, log_user_interaction, log_tts_request, log_stt_request, log_response_time
+from food_generator import FoodImageGenerator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,17 +31,18 @@ class FitnessCoachApp:
         SessionState.load_progress_data()
         self.ui = UIComponents()
         self.diet_analyzer = DietAnalyzer()
+        self.food_generator = FoodImageGenerator()
 
     def start_application(self):
         """Main application entry point"""
         self.ui.setup_page()
         st.title("🏋️‍♂️ Fit AI - Your Personal Fitness Coach")
         
-        options = ["Profile", "Generate Workout", "Diet analyzer", "Questions", "Progress Journal", "Analytics"]
+        options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "Progress Journal", "Analytics"]
         selected = option_menu(
             menu_title=None,
             options=options,
-            icons=['person', 'book', 'egg-fried', 'patch-question-fill', 'journal', 'graph-up-arrow'],
+            icons=['person', 'book', 'egg-fried', 'pencil', 'patch-question-fill', 'journal', 'graph-up-arrow'],
             default_index=0,
             orientation="horizontal",
         )
@@ -52,11 +56,13 @@ class FitnessCoachApp:
             if selected == options[2]:
                 self.display_diet_section()
             if selected == options[3]:
-                self.display_questions_section()
+                self.display_pose_section()
             if selected == options[4]:
-                self.display_progress_journal_section()
+                self.display_questions_section()
             if selected == options[5]:
-                self.display_analytics_section()
+                self.display_progress_journal_section()
+            if selected == options[6]:
+                display_analytics()
         else:
             for option in options[1:]:
                 if selected == option:
@@ -126,6 +132,10 @@ class FitnessCoachApp:
                             )
                             st.session_state.user_info = info
                             st.session_state.profile_completed = True
+                            log_user_interaction('profile_update', {
+                                    'age': age,
+                                    'country': country
+                                })
                             st.success("Profile saved successfully! 🎉")
                             st.balloons()
                         except ValidationError as e:
@@ -164,7 +174,7 @@ class FitnessCoachApp:
             "What equipment do you have access to?",
             options=equipment_options
         )
-
+        log_user_interaction('workout_generation', {'equipment': selected_equipment})
         # Workout duration preference
         duration_options = {
             "30 mins": 30,
@@ -207,6 +217,7 @@ class FitnessCoachApp:
 
         if st.button("Generate Workout Routine", type="primary"):
             try:
+                start_time = time.time()
                 with st.spinner("Creating your personalized fitness journey..."):
                     # Prepare workout preferences
                     workout_preferences = {
@@ -227,15 +238,28 @@ class FitnessCoachApp:
                     )
 
                     if fitness_plan:
+                        processing_time = time.time() - start_time
+                        log_response_time('workout_generation', processing_time)
+                        log_user_interaction('workout_plan_generated', {
+                                'duration': duration_options[selected_duration],
+                                'focus_areas': focus_areas
+                            })
+
                         # Create tabs for different views of the workout plan
                         st.session_state.workout_plan = fitness_plan.content
                         st.session_state.workout_summary = llm.summarizer(fitness_plan.content)
                         if st.session_state.workout_summary:
+                            start_time = time.time()
                             tts_handler = TTSHandler()
                             st.session_state.audio_html = tts_handler.text_to_speech(st.session_state.workout_summary)
                             st.session_state.cache_path = tts_handler._get_cache_path(
                                 tts_handler._clean_text(st.session_state.workout_summary)
                             )
+                            processing_time = time.time() - start_time
+                            log_tts_request(
+                                text_length=len(st.session_state.workout_summary),
+                                processing_time=processing_time
+    )
                 if st.session_state.workout_plan:
                         plan_tabs = st.tabs(["Complete Plan", "Quick Summary", "Audio Guide"])
                         with plan_tabs[0]:
@@ -270,10 +294,24 @@ class FitnessCoachApp:
     def display_diet_section(self):
         """Render workout tab content"""
         if st.session_state.user_info:
+            log_user_interaction('diet_analysis_start', {
+                    'user_weight': st.session_state.user_info.weight
+                })
             self.diet_analyzer.display_diet_analyzer(st.session_state.user_info)
         else:
             st.error("Please complete your profile first to use the Diet Analyzer.")
             logger.error("Please complete your profile first to use the Diet Analyzer.")
+    
+    def display_pose_section(self):
+        if st.session_state.user_info:
+            log_user_interaction('food_generation_start', {
+                'feature': 'text_to_image'
+            })
+            self.food_generator.display_generator()
+        else:
+            st.error("Please complete your profile first to use the Posture Generator.")
+            logger.error("Please complete your profile first to use the Posture Generator.")
+            
     def display_questions_section(self):
         """Render questions tab with enhanced features"""
         st.header("Ask Your Fitness Questions 💪")
@@ -300,12 +338,19 @@ class FitnessCoachApp:
                 st.audio(audio_file)
                 if st.button("Transcribe Audio"):
                     with st.spinner("Transcribing your question..."):
+                        start_time = time.time()
                         question = speech_to_text(audio_file)
+                        processing_time = time.time() - start_time
+                        log_stt_request(
+                            audio_duration=get_audio_duration(audio_file),  # You'll need to implement this
+                            processing_time=processing_time
+                        )
                         st.session_state.transcribed_question = question
                         st.write("Transcribed question:", question)
 
             # Process question
             if st.button("Get Answer", type="primary") and (question or st.session_state.get('transcribed_question')):
+                start_time = time.time()
                 with st.spinner("Analyzing your question..."):
                     # Initialize LLM handler
                     llm = LLMHandler()
@@ -317,6 +362,8 @@ class FitnessCoachApp:
                     response = llm.answer_question(final_question, st.session_state.user_info)
                     
                     if response:
+                        processing_time = time.time() - start_time
+                        log_response_time('question_answering', processing_time)
                         # Display answer
                         st.markdown(response)
                         
@@ -337,181 +384,6 @@ class FitnessCoachApp:
             logger.error(f"Error in questions section: {str(e)}")
             st.error("An error occurred while processing your question. Please try again.")
     
-    def display_analytics_section(self):
-        """Render enhanced analytics dashboard tab content"""
-        st.header("Fitness Analytics Dashboard 📊")
-        
-        try:
-            if st.session_state.progress_data:
-                progress_dataframe = pd.DataFrame(st.session_state.progress_data)
-                progress_dataframe['date'] = pd.to_datetime(progress_dataframe['date'])
-                
-                # Overview metrics
-                st.subheader("Quick Stats 📈")
-                metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-                
-                with metrics_col1:
-                    total_workouts = len(progress_dataframe)
-                    st.metric("Total Workouts", total_workouts)
-                
-                with metrics_col2:
-                    if 'weight' in progress_dataframe.columns:
-                        weight_change = progress_dataframe['weight'].iloc[-1] - progress_dataframe['weight'].iloc[0]
-                        st.metric("Weight Change (kg)", f"{weight_change:.1f}")
-                
-                with metrics_col3:
-                    avg_intensity = progress_dataframe['intensity'].mode()[0]
-                    st.metric("Most Common Intensity", avg_intensity)
-                
-                with metrics_col4:
-                    streak = progress_dataframe['date'].diff().dt.days.eq(1).sum()
-                    st.metric("Current Streak", f"{streak} days")
-
-                # Weight Progress Chart with Moving Average
-                st.subheader("Weight Progress Over Time")
-                if 'weight' in progress_dataframe.columns:
-                    progress_dataframe['MA7_weight'] = progress_dataframe['weight'].rolling(window=7).mean()
-                    
-                    fig_weight = px.line(
-                        progress_dataframe,
-                        x="date",
-                        y=["weight", "MA7_weight"],
-                        title="Weight Tracking with 7-day Moving Average",
-                        labels={
-                            "weight": "Weight (kg)",
-                            "MA7_weight": "7-day Moving Average",
-                            "date": "Date"
-                        }
-                    )
-                    fig_weight.update_layout(hovermode='x unified')
-                    st.plotly_chart(fig_weight, use_container_width=True)
-
-                # Create two columns for charts
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Energy Levels Over Time
-                    st.subheader("Energy Level Trends")
-                    mood_mapping = {'Low': 1, 'Medium': 2, 'High': 3}
-                    progress_dataframe['mood_numeric'] = progress_dataframe['mood'].map(mood_mapping)
-                    
-                    fig_mood_trend = px.line(
-                        progress_dataframe,
-                        x="date",
-                        y="mood_numeric",
-                        title="Energy Level Trends",
-                        labels={
-                            "mood_numeric": "Energy Level",
-                            "date": "Date"
-                        }
-                    )
-                    fig_mood_trend.update_yaxis(ticktext=['Low', 'Medium', 'High'], tickvals=[1, 2, 3])
-                    st.plotly_chart(fig_mood_trend, use_container_width=True)
-
-                with col2:
-                    # Workout Intensity Distribution
-                    st.subheader("Workout Intensity Distribution")
-                    fig_intensity = px.pie(
-                        progress_dataframe,
-                        names="intensity",
-                        title="Workout Intensities",
-                        color_discrete_sequence=px.colors.sequential.Viridis
-                    )
-                    st.plotly_chart(fig_intensity, use_container_width=True)
-
-                # Weekly Progress Summary
-                st.subheader("Weekly Progress Summary")
-                weekly_summary = progress_dataframe.resample('W', on='date').agg({
-                    'weight': 'mean',
-                    'intensity': lambda x: x.mode()[0] if not x.empty else None,
-                    'mood': lambda x: x.mode()[0] if not x.empty else None,
-                    'date': 'count'
-                }).reset_index()
-                weekly_summary.columns = ['Week', 'Avg Weight', 'Common Intensity', 'Common Energy Level', 'Workouts']
-                
-                st.dataframe(
-                    weekly_summary.style.format({
-                        'Avg Weight': '{:.1f}',
-                        'Workouts': '{:.0f}'
-                    }),
-                    use_container_width=True
-                )
-
-                # Export Options
-                st.subheader("Export Data 📤")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.button("Download Raw Data (CSV)"):
-                        try:
-                            csv = progress_dataframe.to_csv(index=False)
-                            b64 = base64.b64encode(csv.encode()).decode()
-                            href = f'<a href="data:file/csv;base64,{b64}" download="fitness_progress.csv">Download CSV File</a>'
-                            st.markdown(href, unsafe_allow_html=True)
-                        except Exception as e:
-                            logger.error(f"Error exporting CSV: {e}")
-                            st.error("Unable to generate CSV. Please try again.")
-                
-                with col2:
-                    if st.button("Generate Progress Report"):
-                        try:
-                            report = self._generate_progress_report(progress_dataframe)
-                            b64 = base64.b64encode(report.encode()).decode()
-                            href = f'<a href="data:text/markdown;base64,{b64}" download="progress_report.md">Download Progress Report</a>'
-                            st.markdown(href, unsafe_allow_html=True)
-                        except Exception as e:
-                            logger.error(f"Error generating report: {e}")
-                            st.error("Unable to generate report. Please try again.")
-
-            else:
-                st.info("No progress data available yet. Start tracking your progress to see analytics!")
-                
-                # Sample dashboard preview
-                    
-        except Exception as e:
-            logger.error(f"Error in analytics tab: {e}")
-            st.error("An error occurred while loading analytics. Please try again.")
-
-    def _generate_progress_report(self, df: pd.DataFrame) -> str:
-        """Generate a detailed progress report in markdown format"""
-        try:
-            latest_weight = df['weight'].iloc[-1]
-            initial_weight = df['weight'].iloc[0]
-            weight_change = latest_weight - initial_weight
-            total_workouts = len(df)
-            avg_intensity = df['intensity'].mode()[0]
-            
-            report = f"""# Fitness Progress Report
-    Generated on: {datetime.now().strftime('%Y-%m-%d')}
-
-    ## Overall Progress
-    - Total Workouts Completed: {total_workouts}
-    - Weight Change: {weight_change:.1f} kg
-    - Most Common Workout Intensity: {avg_intensity}
-
-    ## Weekly Breakdown
-    """
-            # Add weekly summary
-            weekly_data = df.resample('W', on='date').agg({
-                'weight': 'mean',
-                'intensity': lambda x: x.mode()[0] if not x.empty else None,
-                'mood': lambda x: x.mode()[0] if not x.empty else None,
-                'date': 'count'
-            })
-            
-            for week in weekly_data.index:
-                report += f"""
-    ### Week of {week.strftime('%Y-%m-%d')}
-    - Average Weight: {weekly_data.loc[week, 'weight']:.1f} kg
-    - Workouts Completed: {weekly_data.loc[week, 'date']:.0f}
-    - Common Intensity: {weekly_data.loc[week, 'intensity']}
-    - Common Energy Level: {weekly_data.loc[week, 'mood']}
-    """
-            
-            return report
-        except Exception as e:
-            logger.error(f"Error generating progress report: {e}")
-            raise e
     def display_progress_journal_section(self):
         """Render progress journal tab"""
         st.header("Progress Journal 📔")

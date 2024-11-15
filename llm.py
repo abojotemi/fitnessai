@@ -308,10 +308,10 @@ class LLMHandler:
             info_copy.update({'food_items': food_items['label']})
             chain = prompt | self.llm
             response = chain.invoke(info_copy)
+            
             return response.content
         except Exception as e:
             st.error(f"Error analyzing diet: {str(e)}")
             print(f'Error at llm: {str(e)}')
             return None
-        
         

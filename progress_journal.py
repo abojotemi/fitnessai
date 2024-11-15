@@ -144,6 +144,7 @@ class ProgressJournal:
                 ''', (entry_id, 'voice_note', entry.voice_notes))
             
             conn.commit()
+            
             return entry_id
             
         except Exception as e:
