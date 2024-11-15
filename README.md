@@ -147,22 +147,23 @@ streamlit run src/main.py
 
 ## 📝 Project Structure
 ```
-FitnessAI/
-├── main.py              # Main application entry point
-├── chat_logic.py        # Diet analysis component
-├── food_generator.py    # Food image generation component
-├── llm.py              # LLM handler for all AI interactions
-├── config.py           # Configuration and settings
-├── chat.py             # Huggingface model initialization point
-├── components.py        # UI components
-├── utils.py            # Utility functions
-├── progress_journal.py  # Logic for progress journal
-├── analytics_tab.py     # Logic for app analysis
-├── session_state.py     # Global variable logic for user
-├── requirements.txt     # Installing required dependencies
-└── README.md           # Documentation
+fitnessai/
+├── src/
+│   ├── main.py              # Main application entry point
+│   ├── diet_analysis.py     # Diet analysis component
+│   ├── food_generator.py    # Food image generation component
+│   ├── llm.py               # LLM handler for all AI interactions
+│   ├── config.py            # Configuration and settings
+│   ├── image_processing.py  # Huggingface model initialization point
+│   ├── components.py        # UI components
+│   ├── utils.py             # Utility functions
+│   ├── progress_journal.py  # Logic for progress journal
+│   ├── analytics_tab.py     # Logic for app analysis
+│   └── session_state.py     # Global variable logic for user
+├── requirements.txt         # Installing required dependencies
+├── .env                     # Contains environment variables
+└── README.md                # Documentation
 ```
-
 ## 💡 Usage Examples
 
 ### 1. Generating a Workout Plan (Text -> Speech)
