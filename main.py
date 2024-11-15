@@ -9,7 +9,7 @@ from config import AppConfig, UserInfo
 from session_state import SessionState
 from components import UIComponents
 from utils import TTSHandler, get_audio_duration, text_to_speech, speech_to_text
-from chat_logic import DietAnalyzer
+from diet_analysis import DietAnalyzer
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
 from analytics_tab import display_analytics, log_user_interaction, log_tts_request, log_stt_request, log_response_time

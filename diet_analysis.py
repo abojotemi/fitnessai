@@ -1,7 +1,7 @@
 import time
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
-from chat import predict_food
+from image_processing import predict_food
 from llm import LLMHandler
 import streamlit as st
 import logging

@@ -6,7 +6,7 @@ import streamlit as st
 import logging
 from pathlib import Path
 import base64
-from chat import generate_food_image
+from image_processing import generate_food_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
