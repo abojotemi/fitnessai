@@ -27,7 +27,9 @@ FOOD_API_URL = "https://api-inference.huggingface.co/models/nateraw/food"
 headers = {"Authorization": f"Bearer {API_KEY}"}
 
 
-starry_api_key = os.environ.get("STARRYAI_API_KEY")
+starry_api_key = os.getenv("STARRYAI_API_KEY")
+if not starry_api_key:
+    raise ValueError("STARRYAI_API_KEY not found in environment variables")
 def create_image(prompt: str) -> int:
     """Create a new image generation request."""
     url = "https://api.starryai.com/creations/"
@@ -258,13 +260,12 @@ def generate_food_image(prompt: str) -> Optional[bytes]:
         Optional[bytes]: Generated image data or None if generation fails
     """
     try:
-        with st.spinner("🎨 Generating food image..."):
-            image_data = generate_image_from_text(prompt)
-            
-            if image_data:
-                st.success("Image generated successfully!")
-                return image_data
-            return None
+        image_data = generate_image_from_text(prompt)
+        
+        if image_data:
+            st.success("Image generated successfully!")
+            return image_data
+        return None
             
     except requests.exceptions.RequestException as e:
         st.error("️Error generating image. The service might be temporarily unavailable. Please try again in a few moments.")
