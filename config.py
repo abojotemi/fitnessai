@@ -5,9 +5,12 @@ from pydantic import BaseModel, Field
 class AppConfig:
     VALID_IMAGE_TYPES: tuple = ("png", "jpg", "jpeg", "gif", "webp")
     MAX_IMAGE_SIZE: int = 10 * 1024 * 1024 
-    DEFAULT_WEIGHT: float = 30.0
-    DEFAULT_HEIGHT: float = 120.0
-    DEFAULT_AGE: int = 10
+    DEFAULT_WEIGHT: float = 70.0
+    DEFAULT_HEIGHT: float = 178.0
+    DEFAULT_AGE: int = 30
+    MIN_AGE: int = 10
+    MIN_HEIGHT: float = 120.0
+    MIN_WEIGHT: float = 30.0
 
 class UserInfo(BaseModel):
     """User profile data model with validation"""

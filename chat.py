@@ -132,7 +132,7 @@ def get_image(creation_id: int, max_attempts: int = 40, initial_delay: float = 3
                 else:
                     delay = min(delay * 1.1, 15.0)  # Slower increase for later attempts
                 
-                logger.debug(f"Waiting {delay:.1f} seconds before next attempt")
+                logger.info(f"Waiting {delay:.1f} seconds before next attempt")
                 time.sleep(delay)
                 
         except ImageGenerationError as e:

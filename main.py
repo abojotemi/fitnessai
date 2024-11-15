@@ -1,13 +1,9 @@
 from pathlib import Path
 import time
 import streamlit as st
-import plotly.express as px
 from streamlit_option_menu import option_menu
-from datetime import datetime
-import pandas as pd
 import pycountry
 from pydantic import ValidationError
-import base64
 import logging
 from config import AppConfig, UserInfo
 from session_state import SessionState
@@ -36,7 +32,7 @@ class FitnessCoachApp:
     def start_application(self):
         """Main application entry point"""
         self.ui.setup_page()
-        st.title("🏋️‍♂️ Fit AI - Your Personal Fitness Coach")
+        st.title("🏋️‍♂️ Fitness AI - Your Personal Fitness Coach")
         
         options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "Progress Journal", "Analytics"]
         selected = option_menu(
@@ -83,12 +79,12 @@ class FitnessCoachApp:
                     with col1:
                         age = st.number_input(
                             "Age",
-                            min_value=self.config.DEFAULT_AGE,
+                            min_value=self.config.MIN_AGE,
                             value=st.session_state.user_info.age if st.session_state.user_info else self.config.DEFAULT_AGE
                         )
                         weight = st.number_input(
                             "Weight (kg)",
-                            min_value=self.config.DEFAULT_WEIGHT,
+                            min_value=self.config.MIN_WEIGHT,
                             value=st.session_state.user_info.weight if st.session_state.user_info else self.config.DEFAULT_WEIGHT
                         )
                     
@@ -100,7 +96,7 @@ class FitnessCoachApp:
                         )
                         height = st.number_input(
                             "Height (cm)",
-                            min_value=self.config.DEFAULT_HEIGHT,
+                            min_value=self.config.MIN_HEIGHT,
                             value=st.session_state.user_info.height if st.session_state.user_info else self.config.DEFAULT_HEIGHT
                         )
                     
@@ -114,7 +110,8 @@ class FitnessCoachApp:
                     goals = st.text_area(
                         "Fitness Goals",
                         value=st.session_state.user_info.goals if st.session_state.user_info else "",
-                        help="Describe your fitness goals (minimum 5 characters)"
+                        help="Describe your fitness goals (minimum 5 characters)",
+                        placeholder="Gaining Muscle"
                     )
                     
                     submit = st.form_submit_button("Save Profile")
@@ -259,7 +256,7 @@ class FitnessCoachApp:
                             log_tts_request(
                                 text_length=len(st.session_state.workout_summary),
                                 processing_time=processing_time
-    )
+                                )
                 if st.session_state.workout_plan:
                         plan_tabs = st.tabs(["Complete Plan", "Quick Summary", "Audio Guide"])
                         with plan_tabs[0]:
