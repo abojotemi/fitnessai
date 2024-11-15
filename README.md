@@ -165,7 +165,7 @@ FitnessAI/
 
 ## 💡 Usage Examples
 
-### 1. Generating a Workout Plan $(\text{Text} \rightarrow \text{Speech})$
+### 1. Generating a Workout Plan (Text -> Speech)
 
 ```mermaid
 flowchart LR
@@ -173,7 +173,7 @@ A[User Info] --> C[Prompt]
 B[Workout Preferences] --> C
 C --> D(LLM Generator)
 D --> E(LLM Summarizer)
-E --> F[Audio Result]
+E --> F[gTTS] --> G[Audio Result]
 ```
 
 ```python
@@ -190,7 +190,7 @@ plan = llm.generate_fitness_plan(user_info, workout_preferences)
 ```
 
 
-### 2. Analyzing Diet $(\text{Image} \rightarrow \text{Text})$
+### 2. Analyzing Diet (Image --> Text)
 ```mermaid
 flowchart LR
 A[Image] --> B(Image classifier)
@@ -207,7 +207,7 @@ analyzer = DietAnalyzer()
 analysis = analyzer.process_image(food_image, user_info)
 ```
 
-### 3. Generating Food Images $(\text{Text} \rightarrow \text{Image})$
+### 3. Generating Food Images (Text --> Image)
 ```mermaid
 flowchart LR
 
@@ -231,7 +231,7 @@ self._handle_generation(prompt, style, lighting)
 ```
 
 
-### 4. Questions $(\text{Audio} \rightarrow \text{Text})$
+### 4. Questions (Speech --> Text)
 ```mermaid
 flowchart LR
 
