@@ -114,7 +114,7 @@ class FitnessCoachApp:
                         "Fitness Goals",
                         value=st.session_state.user_info.goals if st.session_state.user_info else "",
                         help="Describe your fitness goals (minimum 5 characters)",
-                        placeholder="Gaining Muscle"
+                        placeholder="Muscle gain"
                     )
                     
                     submit = st.form_submit_button("Save Profile")
