@@ -330,7 +330,7 @@ class FitnessCoachApp:
                 st.write("Or")
                 audio_file = st.file_uploader(
                     "Upload audio question",
-                    type=("mp3", "wav", "m4a"),
+                    type=("mp3", "wav", "m4a", "aac"),
                     help="Record and upload your question as audio"
                 )
 

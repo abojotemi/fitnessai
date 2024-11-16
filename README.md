@@ -91,7 +91,7 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
   - AssemblyAI for Speech-to-Text
   - gTTS (Google Text-to-Speech) for audio generation
 - **Video Processing**: youtube-transcript-api for transcript generation
-- **RAG**: FAISS for Vector Database
+- **RAG**: Pinecone for Vector Database
 - **Data Storage**: SQLite for caching and analytics
 - **Analytics**: Plotly for visualization
 - **Caching**: Streamlit Cache, SQLite Cache
@@ -134,13 +134,15 @@ GOOGLE_API_KEY=your_google_api_key
 ASSEMBLY_AI_KEY=your_assemblyai_key
 HUGGINGFACE_API_KEY=your_huggingface_key
 STARRYAI_API_KEY=your_starryai_key
+PINECONE_API_KEY=your_pinecone_key
 ```
 
 Required API keys:
-- [Gemini API Key](https://aistudio.google.com/)
+- [Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
 - [AssemblyAI API Key](https://www.assemblyai.com)
 - [Huggingface API Key](https://huggingface.co)
 - [StarryAI API Key](https://starryai.readme.io/reference/getting-started-with-your-api)
+- [Pinecone API Key](https://docs.pinecone.io/guides/projects/manage-api-keys#create-an-api-key)
 
 ### Installation Steps
 ```bash
