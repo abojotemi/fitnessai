@@ -88,16 +88,6 @@ def log_tts_request(text_length: int, processing_time: float):
     except Exception as e:
         logger.error(f"Error logging TTS request: {e}")
 
-def log_stt_request(audio_duration: float, processing_time: float):
-    """Log speech-to-text request metrics"""
-    try:
-        analytics_manager = AnalyticsManager()
-        analytics_manager.log_event('stt_requests', {
-            'audio_duration': audio_duration,
-            'processing_time': processing_time
-        })
-    except Exception as e:
-        logger.error(f"Error logging STT request: {e}")
 
 def log_response_time(feature: str, response_time: float):
     """Log response time metrics"""

@@ -13,7 +13,7 @@ from diet_analysis import DietAnalyzer
 from video_analysis import display_video_tab
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
-from analytics_tab import display_analytics, log_user_interaction, log_tts_request, log_stt_request, log_response_time
+from analytics_tab import display_analytics, log_user_interaction, log_tts_request, log_response_time
 from food_generator import FoodImageGenerator
 
 # Configure logging
@@ -341,10 +341,6 @@ class FitnessCoachApp:
                         start_time = time.time()
                         question = speech_to_text(audio_file)
                         processing_time = time.time() - start_time
-                        log_stt_request(
-                            audio_duration=get_audio_duration(audio_file),  # You'll need to implement this
-                            processing_time=processing_time
-                        )
                         st.session_state.transcribed_question = question
                         st.write("Transcribed question:", question)
 
