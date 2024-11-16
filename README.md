@@ -70,10 +70,18 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
 - Response time analysis
 - User engagement tracking
 
+## 8. Intelligent Video Analysis
+- YouTube transcript extraction
+- AI-powered semantic search
+- Context-aware responses
+- Chat-based interaction
+- Persistent chat history
+
 ## 🛠️ Technology Stack
 
 - **Frontend**: Streamlit
-- **Language Models**: 
+- **Language Models**:
+  - Langchain for LLM integration 
   - Google Gemini 1.5 Flash for natural language processing
   - Custom prompting for context-aware responses
 - **Image Processing**:
@@ -82,6 +90,8 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
 - **Speech Processing**:
   - AssemblyAI for Speech-to-Text
   - gTTS (Google Text-to-Speech) for audio generation
+- **Video Processing**: youtube-transcript-api for transcript generation
+- **RAG**: ChromaDB for Vector Database
 - **Data Storage**: SQLite for caching and analytics
 - **Analytics**: Plotly for visualization
 - **Caching**: Streamlit Cache, SQLite Cache
@@ -91,11 +101,11 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
 ### Response Times
 | Feature | Average Response Time | Success Rate |
 |---------|---------------------|--------------|
-| Workout Generation | 15s | 99.5% |
-| Image Analysis | 20s | 98.2% |
+| Image-to-Text | 20s | 98.2% |
 | Speech-to-Text | 10s | 97.8% |
 | Text-to-Speech | 10s | 99.9% |
-| Food Image Generation | 25s | 96.8% |
+| Text-to-Image | 25s | 96.8% |
+| Video-to-Text | 30s | 95.9% |
 
 ### Accuracy Metrics
 - Food Classification Accuracy: 85%+ using nateraw/food model
@@ -159,6 +169,7 @@ fitnessai/
 │   ├── utils.py             # Utility functions
 │   ├── progress_journal.py  # Logic for progress journal
 │   ├── analytics_tab.py     # Logic for app analysis
+│   ├── video_analysis.py     # Logic for video analysis
 │   └── session_state.py     # Global variable logic for user
 ├── requirements.txt         # Installing required dependencies
 ├── .env                     # Contains environment variables
@@ -255,6 +266,31 @@ question = speech_to_text(audio_file)
 # Generate answer
 response = llm.answer_question(question, user_info)
 ```
+### 5. Analyzing Video Content (Video --> Text)
+
+```mermaid
+flowchart LR
+A[YouTube URL] --> B[Transcript Extractor]
+B --> C[Vectorize]
+C --> D[Vector Store]
+E[Question] --> C
+D --> G[LLM Response]
+```
+```python
+# Example of video analysis
+video_url = "https://www.youtube.com/watch?v=example"
+manager = VideoRAGManager()
+
+# Process video
+video_id = get_video_id(video_url)
+transcript = get_transcript(video_id)
+vectorstore = create_embeddings_and_store(transcript, title)
+
+# Query video content
+query = "What are the main points discussed in the video?"
+docs = vectorstore.similarity_search(query, k=3)
+response = get_llm_response(title, query, context)
+```
 
 Key Features:
 - Real-time audio transcription
@@ -289,6 +325,13 @@ Key Features:
    - Reduced classification time by 30%
    - Improved accuracy by 15%
    - Huggingface inference API integration for better performance
+  
+5. **Video Processing Optimization**
+   - Chunked text processing
+   - Optimized embedding generation
+   - Efficient vector search
+   - Response caching
+  
 
 ## 📸 Screenshots
 
@@ -305,6 +348,9 @@ Key Features:
 ## Food Generator
 ![Food Generator](./images/Food-Generator.png)
 
+## RAG Video Analyzer
+![RAG Video Analyzer](./images/Video-Analysis.png)
+
 ## Progress Journal
 ![Progress Journal](./images/Progress-Journal.png)
 
@@ -317,4 +363,5 @@ Key Features:
 - HuggingFace for the food classification model
 - StarryAI for food image generation
 - AssemblyAI for speech processing
+- Langchain for easy LLM integration
 - The Streamlit team for the amazing framework

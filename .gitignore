@@ -1,8 +1,9 @@
 docs/
 .venv/
 .env
-# images/ 
 __pycache__/
 data/
-chroma_langchain_db/
+chroma_db/
+video_cache/
+.git/
 *.db

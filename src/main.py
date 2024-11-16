@@ -10,6 +10,7 @@ from session_state import SessionState
 from components import UIComponents
 from utils import TTSHandler, get_audio_duration, text_to_speech, speech_to_text
 from diet_analysis import DietAnalyzer
+from video_analysis import display_video_tab
 from progress_journal import initialize_progress_journal
 from llm import LLMHandler
 from analytics_tab import display_analytics, log_user_interaction, log_tts_request, log_stt_request, log_response_time
@@ -34,11 +35,11 @@ class FitnessCoachApp:
         self.ui.setup_page()
         st.title("🏋️‍♂️ Fitness AI - Your Personal Fitness Coach")
         
-        options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "Progress Journal", "Analytics"]
+        options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "RAG Video","Progress Journal", "Analytics"]
         selected = option_menu(
             menu_title=None,
             options=options,
-            icons=['person', 'book', 'egg-fried', 'pencil', 'patch-question-fill', 'journal', 'graph-up-arrow'],
+            icons=['person', 'book', 'egg-fried', 'pencil', 'patch-question-fill', 'youtube', 'journal', 'graph-up-arrow'],
             default_index=0,
             orientation="horizontal",
         )
@@ -56,8 +57,10 @@ class FitnessCoachApp:
             if selected == options[4]:
                 self.display_questions_section()
             if selected == options[5]:
-                self.display_progress_journal_section()
+                self.display_video_section()
             if selected == options[6]:
+                self.display_progress_journal_section()
+            if selected == options[7]:
                 display_analytics()
         else:
             for option in options[1:]:
@@ -380,7 +383,9 @@ class FitnessCoachApp:
         except Exception as e:
             logger.error(f"Error in questions section: {str(e)}")
             st.error("An error occurred while processing your question. Please try again.")
-    
+
+    def display_video_section(self):
+        display_video_tab()
     def display_progress_journal_section(self):
         """Render progress journal tab"""
         st.header("Progress Journal 📔")
