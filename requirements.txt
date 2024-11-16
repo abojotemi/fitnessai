@@ -201,6 +201,7 @@ soundfile==0.12.1
 soupsieve==2.6
 SpeechRecognition==3.11.0
 SQLAlchemy==2.0.35
+sqlite3>=3.35.0
 stack-data==0.6.3
 starlette==0.41.2
 storage3==0.9.0
