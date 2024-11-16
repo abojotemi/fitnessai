@@ -61,8 +61,6 @@ google_search_results==2.4.2
 googleapis-common-protos==1.65.0
 gotrue==2.10.0
 greenlet==3.1.1
-grpcio==1.67.1
-grpcio-status==1.67.1
 gTTS==2.5.4
 h11==0.14.0
 h2==4.1.0
