@@ -210,6 +210,7 @@ def display_video_tab():
 
     with col2:
         st.markdown("## 🎥 Video Content Analysis")
+        st.write("Post the link to your fitness related video below, and ask questions based on the video.")
         
         # URL Input with clear button
         url_col1, url_col2 = st.columns([4, 1])

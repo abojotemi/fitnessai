@@ -35,7 +35,7 @@ class FitnessCoachApp:
         self.ui.setup_page()
         st.title("🏋️‍♂️ Fitness AI - Your Personal Fitness Coach")
         
-        options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "RAG Video","Progress Journal", "Analytics"]
+        options = ["Profile", "Generate Workout", "Diet analyzer", "Food Generator", "Questions", "Video Analyzer","Progress Journal", "Analytics"]
         selected = option_menu(
             menu_title=None,
             options=options,
