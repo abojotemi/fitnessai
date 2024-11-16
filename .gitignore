@@ -7,3 +7,4 @@ chroma_db/
 video_cache/
 .git/
 *.db
+list.txt
