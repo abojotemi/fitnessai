@@ -26,3 +26,5 @@ streamlit
 streamlit-option-menu
 youtube-transcript-api
 yt-dlp
+pinecone-client
+langchain-pinecone

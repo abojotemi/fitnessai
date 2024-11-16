@@ -3,18 +3,15 @@ import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_community.vectorstores import FAISS
-import pickle
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone, ServerlessSpec
+import os
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate
 import yt_dlp
-import os
-import shutil
+import logging
 from dotenv import load_dotenv
 import time
-import logging
-
-
 
 # Initialize logging and environment
 logging.basicConfig(level=logging.INFO)
@@ -22,15 +19,26 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Constants
-PERSIST_DIRECTORY = "./faiss_indexes"  # Changed from chroma_db to faiss_indexes
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_NAME = "video-rag"  # Choose your index name
 K_RESULTS = 3
 
-
-# Set your Google API key in Streamlit secrets or environment variables
+# Set your Google API key
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
-# Initialize persist directory
 
-# System prompt for the LLM
+# Initialize Pinecone
+pc = Pinecone(api_key=PINECONE_API_KEY)
+if PINECONE_INDEX_NAME not in pc.list_indexes().names():
+    pc.create_index(
+        name=PINECONE_INDEX_NAME,
+        dimension=768,  # Dimension for Google's embedding model
+        metric="cosine",
+        spec=ServerlessSpec(
+            cloud="aws",
+            region="us-east-1"
+        )
+    )
+# System prompt remains the same
 SYSTEM_PROMPT = """You are an intelligent video content analyzer. Your task is to provide accurate, relevant answers to questions about the video content using the provided context from the video transcript. Please follow these guidelines:
 
 1. Base your answers solely on the provided context
@@ -80,32 +88,51 @@ def get_transcript(video_id):
         st.error(f"Error fetching transcript: {str(e)}")
         return None
 
-def create_embeddings_and_store(text, title):
-    """Create embeddings and store in FAISS"""
-    # Create a clean directory for the new embeddings
-    collection_path = os.path.join(PERSIST_DIRECTORY, title.replace(" ", "_")[:100])
-    if os.path.exists(collection_path):
-        shutil.rmtree(collection_path)
-    os.makedirs(collection_path)
+def create_embeddings_and_store(text, video_id, title):
+    """Create embeddings and store in Pinecone"""
+    try:
+        # Split text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=750,
+            chunk_overlap=50
+        )
+        chunks = text_splitter.split_text(text)
+        
+        # Initialize Google's embedding model
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        
+        # Create metadata for each chunk
+        texts_with_metadata = [
+            {
+                "text": chunk,
+                "video_id": video_id,
+                "title": title,
+                "chunk_id": i
+            } for i, chunk in enumerate(chunks)
+        ]
+        
+        # Initialize or get existing index
+
+        index = pc.Index(PINECONE_INDEX_NAME)
+        
+        # Create and return vector store
+        vectorstore = PineconeVectorStore(
+            index=index,
+            embedding=embeddings,
+            text_key="text"
+        )
+        
+        # Upsert documents with metadata
+        vectorstore.add_texts(
+            texts=[d["text"] for d in texts_with_metadata],
+            metadatas=texts_with_metadata
+        )
+        
+        return vectorstore
     
-    # Split text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=750,
-        chunk_overlap=50
-    )
-    chunks = text_splitter.split_text(text)
-    
-    # Initialize Google's embedding model
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    
-    # Create and persist vector store
-    vectorstore = FAISS.from_texts(
-        texts=chunks,
-        embedding=embeddings,
-        persist_directory=collection_path
-    )
-    
-    return vectorstore
+    except Exception as e:
+        logger.error(f"Error creating embeddings and vectorstore: {e}")
+        return None
 
 def get_llm_response(title: str, query: str, context: str) -> str:
     """Get LLM response based on query and context"""
@@ -134,7 +161,6 @@ def get_llm_response(title: str, query: str, context: str) -> str:
         logger.error(f"Error getting LLM response: {str(e)}")
         return None
 
-
 class VideoRAGManager:
     def __init__(self):
         # Initialize persistent session states
@@ -150,9 +176,6 @@ class VideoRAGManager:
             st.session_state.processing = False
         if 'chat_history' not in st.session_state:
             st.session_state.chat_history = {}
-        
-        # Create persist directory if it doesn't exist
-        os.makedirs(PERSIST_DIRECTORY, exist_ok=True)
 
     def add_to_history(self, video_id, title):
         if video_id not in [v['id'] for v in st.session_state.video_history]:
@@ -172,88 +195,23 @@ class VideoRAGManager:
             'timestamp': datetime.now().strftime("%H:%M")
         })
 
-    def save_vectorstore(self, video_id, vectorstore):
-        """Save FAISS index to disk"""
+    def get_vectorstore(self, video_id):
+        """Get Pinecone vectorstore for video"""
         try:
-            index_path = os.path.join(PERSIST_DIRECTORY, f"{video_id}.pkl")
-            with open(index_path, "wb") as f:
-                pickle.dump(vectorstore, f, protocol=pickle.HIGHEST_PROTOCOL)
-            logger.info(f"Vectorstore saved successfully at {index_path}")
-        except Exception as e:
-            logger.error(f"Error saving vectorstore: {e}")
-
-
-    def load_vectorstore(self, video_id):
-        """Load FAISS index from disk"""
-        try:
-            index_path = os.path.join(PERSIST_DIRECTORY, f"{video_id}.pkl")
-            if not os.path.exists(index_path):
-                logger.error(f"Vectorstore file not found: {index_path}")
-                return None
+            index = pc.Index(PINECONE_INDEX_NAME)
+            embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
             
-            with open(index_path, "rb") as f:
-                vectorstore = pickle.load(f)
-                return vectorstore
-        except EOFError:
-            logger.error("Error loading vectorstore: Pickle file is empty or corrupted")
+            # Create vector store with filter for specific video
+            vectorstore = PineconeVectorStore(
+                index=index,
+                embedding=embeddings,
+                text_key="text"
+            )
+            
+            return vectorstore
         except Exception as e:
-            logger.error(f"Error loading vectorstore: {e}")
-        return None
-
-def create_embeddings_and_store(text, title):
-    """Create embeddings and store in FAISS"""
-    try:
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=750,
-            chunk_overlap=50
-        )
-        chunks = text_splitter.split_text(text)
-        
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vectorstore = FAISS.from_texts(chunks, embeddings)
-        
-        if vectorstore is None:
-            raise ValueError("Vectorstore creation failed")
-
-        return vectorstore
-    except Exception as e:
-        logger.error(f"Error creating embeddings and vectorstore: {e}")
-        return None
-
-def get_llm_response(title: str, query: str, context: str) -> str:
-    try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            temperature=0.7,
-        )
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an intelligent video content analyzer. Your task is to provide accurate, relevant answers to questions about the video content using the provided context from the video transcript. Please follow these guidelines:
-
-1. Base your answers solely on the provided context
-2. If the context doesn't contain enough information to answer the question, clearly state that
-3. Include relevant quotes from the transcript when appropriate
-4. Maintain a natural, conversational tone while being informative
-
-Title: {title}
-Context: {context}
-
-Question: {question}"""),
-            ("human", "{question}")
-        ])
-        
-        chain = prompt | llm
-        
-        response = chain.invoke({
-            'title': title,
-            'context': context,
-            'question': query
-        })
-        
-        return response.content
-    except Exception as e:
-        logger.error(f"Error getting LLM response: {str(e)}")
-        return None
+            logger.error(f"Error getting vectorstore: {e}")
+            return None
 
 def display_video_tab():
     manager = VideoRAGManager()
@@ -307,11 +265,11 @@ def display_video_tab():
         if url and not st.session_state.processing:
             video_id = get_video_id(url)
             if video_id:
-                # Check for existing vectorstore
-                vectorstore = manager.load_vectorstore(video_id)
+                # Get vectorstore for video
+                vectorstore = manager.get_vectorstore(video_id)
                 
                 # Process Video if not already processed
-                if video_id not in st.session_state.video_data and not vectorstore:
+                if video_id not in st.session_state.video_data:
                     st.session_state.processing = True
                     
                     with st.status("🎬 Processing Video...", expanded=True) as status:
@@ -328,8 +286,7 @@ def display_video_tab():
                                     time.sleep(0.01)
                                     my_bar.progress(i + 1, text=progress_text)
                                 
-                                vectorstore = create_embeddings_and_store(transcript, title)
-                                manager.save_vectorstore(video_id, vectorstore)
+                                vectorstore = create_embeddings_and_store(transcript, video_id, title)
                                 
                                 st.session_state.video_data[video_id] = {
                                     'title': title,
@@ -376,7 +333,12 @@ def display_video_tab():
                     
                     with st.chat_message("assistant"):
                         with st.spinner("🤔 Thinking..."):
-                            docs = video_data['vectorstore'].similarity_search(query, k=K_RESULTS)
+                            # Use filter to get only relevant documents for this video
+                            docs = video_data['vectorstore'].similarity_search(
+                                query,
+                                k=K_RESULTS,
+                                filter={"video_id": video_id}
+                            )
                             context = "\n".join([doc.page_content for doc in docs])
                             response = get_llm_response(video_data['title'], query, context)
                             
