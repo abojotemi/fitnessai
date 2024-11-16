@@ -8,7 +8,7 @@ import logging
 from config import AppConfig, UserInfo
 from session_state import SessionState
 from components import UIComponents
-from utils import TTSHandler, get_audio_duration, text_to_speech, speech_to_text
+from utils import TTSHandler, text_to_speech, speech_to_text
 from diet_analysis import DietAnalyzer
 from video_analysis import display_video_tab
 from progress_journal import initialize_progress_journal
