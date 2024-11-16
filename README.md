@@ -91,7 +91,7 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
   - AssemblyAI for Speech-to-Text
   - gTTS (Google Text-to-Speech) for audio generation
 - **Video Processing**: youtube-transcript-api for transcript generation
-- **RAG**: ChromaDB for Vector Database
+- **RAG**: FAISS for Vector Database
 - **Data Storage**: SQLite for caching and analytics
 - **Analytics**: Plotly for visualization
 - **Caching**: Streamlit Cache, SQLite Cache
