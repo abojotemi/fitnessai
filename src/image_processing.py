@@ -196,7 +196,7 @@ def generate_image_with_retry(prompt: str, max_retries: int = 2) -> Optional[str
                 time.sleep(5)
     return None
 
-def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_delay: float = 20.0) -> dict:
+def query_image_with_retry(image_path: str, max_retries: int = 5, initial_retry_delay: float = 7.0) -> dict:
     """
     Query the Hugging Face API with retry logic for model loading.
     
