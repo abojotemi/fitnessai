@@ -338,7 +338,7 @@ class LLMHandler:
         
         try:
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-1.5-flash-8b-latest",
                 temperature=0.7,
             )
             
