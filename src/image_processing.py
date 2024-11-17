@@ -43,7 +43,7 @@ def create_image(prompt: str) -> int:
         "aspectRatio": "square",
         "highResolution": False,
         "images": 1,
-        "steps": 20,
+        "steps": 15,
         "initialImageMode": "color",
         "prompt": prompt
     }

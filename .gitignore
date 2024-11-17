@@ -8,3 +8,4 @@ video_cache/
 .git/
 *.db
 list.txt
+*.log

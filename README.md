@@ -291,7 +291,7 @@ vectorstore = create_embeddings_and_store(transcript, title)
 # Query video content
 query = "What are the main points discussed in the video?"
 docs = vectorstore.similarity_search(query, k=3)
-response = get_llm_response(title, query, context)
+response = video_analyzer_llm(title, query, context)
 ```
 
 Key Features:

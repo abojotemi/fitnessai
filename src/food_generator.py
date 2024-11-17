@@ -30,7 +30,7 @@ class FoodImageGenerator:
         if "is_generating" not in st.session_state:
             st.session_state.is_generating = False
             
-    def display_generator(self):
+    def display(self):
         """Display the food image generation interface"""
         st.header("🎨 Food Image Generator")
         

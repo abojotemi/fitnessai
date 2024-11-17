@@ -13,6 +13,8 @@ import logging
 from dotenv import load_dotenv
 import time
 
+from llm import LLMHandler
+
 # Initialize logging and environment
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,19 +41,6 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
         )
     )
 # System prompt remains the same
-SYSTEM_PROMPT = """You are an intelligent video content analyzer. Your task is to provide accurate, relevant answers to questions about the video content using the provided context from the video transcript. Please follow these guidelines:
-
-1. Base your answers solely on the provided context
-2. If the context doesn't contain enough information to answer the question, clearly state that
-3. Include relevant quotes from the transcript when appropriate
-4. Maintain a natural, conversational tone while being informative
-
-Title: {title}
-Context: {context}
-
-Question: {question}
-
-Please provide a clear and concise answer based on the above context."""
 
 def get_video_id(url):
     """Extract video ID from YouTube URL"""
@@ -134,32 +123,7 @@ def create_embeddings_and_store(text, video_id, title):
         logger.error(f"Error creating embeddings and vectorstore: {e}")
         return None
 
-def get_llm_response(title: str, query: str, context: str) -> str:
-    """Get LLM response based on query and context"""
-    try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            temperature=0.7,
-        )
-        
-        messages = [
-            ('system', SYSTEM_PROMPT),
-            ('human', f"Context: {context}\n\nQuestion: {query}")
-        ]
-        
-        prompt = ChatPromptTemplate.from_messages(messages)
-        chain = prompt | llm
-        
-        response = chain.invoke({
-            'title': title,
-            'context': context,
-            'question': query
-        })
-        
-        return response.content
-    except Exception as e:
-        logger.error(f"Error getting LLM response: {str(e)}")
-        return None
+
 
 class VideoRAGManager:
     def __init__(self):
@@ -212,138 +176,141 @@ class VideoRAGManager:
         except Exception as e:
             logger.error(f"Error getting vectorstore: {e}")
             return None
-
-def display_video_tab():
-    manager = VideoRAGManager()
-
-    # Create two columns: sidebar and main content
-    col1, col2 = st.columns([1, 3])
-
-    with col1:
-        st.markdown("### 📊 Dashboard")
-        st.metric("Videos Analyzed", st.session_state.total_processed)
         
-        # Recent Videos Section
-        st.markdown("### 📜 Recent Videos")
-        for video in st.session_state.video_history:
-            with st.expander(f"📺 {video['title'][:30]}...", expanded=False):
-                st.write(f"Analyzed: {video['timestamp']}")
-                if st.button("Load Video", key=f"load_{video['id']}"):
-                    st.session_state.current_video = video['id']
-                    st.experimental_rerun()
+        
 
-        # Help Section
-        with st.expander("ℹ️ Help", expanded=True):
-            st.markdown("""
-            **How to use:**
-            1. Paste a YouTube URL
-            2. Wait for processing
-            3. Ask questions about the video
-            4. View your chat history
+class VideoAnalyzer:
+    def __init__(self):
+        self.manager = VideoRAGManager()
+        
+    def display(self):
+
+        # Create two columns: sidebar and main content
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            st.markdown("### 📊 Dashboard")
+            st.metric("Videos Analyzed", st.session_state.total_processed)
             
-            **Tips:**
-            - Be specific in your questions
-            - Use keywords from the video
-            - Questions are analyzed using AI
-            """)
-
-    with col2:
-        st.markdown("## 🎥 Video Content Analysis")
-        st.write("Paste the url of the fitness related YouTube video you want analyzed. Then ask questions based on the video.")
-        
-        # URL Input with clear button
-        url_col1, url_col2 = st.columns([4, 1])
-        with url_col1:
-            url = st.text_input("🔗 Enter YouTube URL:", key="url_input", 
-                              placeholder="https://youtube.com/watch?v=...")
-        with url_col2:
-            if st.button("🗑️ Clear", type="secondary"):
-                if 'url_input' in st.session_state:
-                    st.session_state.url_input = ""
-                    st.rerun()
-
-        if url and not st.session_state.processing:
-            video_id = get_video_id(url)
-            if video_id:
-                # Get vectorstore for video
-                vectorstore = manager.get_vectorstore(video_id)
-                
-                # Process Video if not already processed
-                if video_id not in st.session_state.video_data:
-                    st.session_state.processing = True
+            # Recent Videos Section
+            st.markdown("### 📜 Recent Videos")
+            for video in st.session_state.video_history:
+                with st.expander(f"📺 {video['title'][:30]}...", expanded=False):
+                    st.write(f"Analyzed: {video['timestamp']}")
                     
-                    with st.status("🎬 Processing Video...", expanded=True) as status:
-                        st.write("Fetching video details...")
-                        title = get_video_title(url)
-                        transcript = get_transcript(video_id)
+
+            # Help Section
+            with st.expander("ℹ️ Help", expanded=True):
+                st.markdown("""
+                **How to use:**
+                1. Paste a YouTube URL
+                2. Wait for processing
+                3. Ask questions about the video
+                4. View your chat history
+                
+                **Tips:**
+                - Be specific in your questions
+                - Use keywords from the video
+                - Questions are analyzed using AI
+                """)
+
+        with col2:
+            st.markdown("## 🎥 Video Content Analysis")
+            st.write("Paste the url of the fitness related YouTube video you want analyzed. Then ask questions based on the video.")
+            
+            # URL Input with clear button
+            url_col1, url_col2 = st.columns([4, 1])
+            with url_col1:
+                url = st.text_input("🔗 Enter YouTube URL:", key="url_input", 
+                                placeholder="https://youtube.com/watch?v=...")
+            with url_col2:
+                if st.button("🗑️ Clear", type="secondary"):
+                    if 'url_input' in st.session_state:
+                        st.session_state.url_input = ""
+                        st.rerun()
+
+            if url and not st.session_state.processing:
+                video_id = get_video_id(url)
+                if video_id:
+                    # Get vectorstore for video
+                    vectorstore = self.manager.get_vectorstore(video_id)
+                    
+                    # Process Video if not already processed
+                    if video_id not in st.session_state.video_data:
+                        st.session_state.processing = True
                         
-                        if title and transcript:
-                            st.write(f"📝 Analyzing: {title}")
-                            try:
-                                progress_text = "Creating AI embeddings..."
-                                my_bar = st.progress(0, text=progress_text)
-                                for i in range(100):
-                                    time.sleep(0.01)
-                                    my_bar.progress(i + 1, text=progress_text)
-                                
-                                vectorstore = create_embeddings_and_store(transcript, video_id, title)
-                                
-                                st.session_state.video_data[video_id] = {
-                                    'title': title,
-                                    'transcript': transcript,
-                                    'vectorstore': vectorstore,
-                                    'processed': True
-                                }
-                                manager.add_to_history(video_id, title)
-                                st.session_state.total_processed += 1
-                                status.update(label="✅ Processing Complete!", state="complete")
-                                
-                            except Exception as e:
-                                st.error(f"❌ Error: {str(e)}")
-                                status.update(label="❌ Processing Failed", state="error")
-                    
-                    st.session_state.processing = False
-                
-                # Display Video and Chat Interface
-                video_data = st.session_state.video_data[video_id]
-                
-                # Video Player
-                with st.expander("📺 Video Player", expanded=True):
-                    st.video(url)
-                    st.caption(f"Title: {video_data['title']}")
-
-                # Chat Interface
-                st.markdown("### 💬 Ask About the Video")
-                
-                # Display chat history
-                if video_id in st.session_state.chat_history:
-                    for chat in st.session_state.chat_history[video_id]:
-                        with st.chat_message("user"):
-                            st.write(f"🕒 {chat['timestamp']}")
-                            st.write(chat['query'])
-                        with st.chat_message("assistant"):
-                            st.write(chat['response'])
-
-                # Query input
-                query = st.chat_input("Type your question here...")
-                
-                if query:
-                    with st.chat_message("user"):
-                        st.write(query)
-                    
-                    with st.chat_message("assistant"):
-                        with st.spinner("🤔 Thinking..."):
-                            # Use filter to get only relevant documents for this video
-                            docs = video_data['vectorstore'].similarity_search(
-                                query,
-                                k=K_RESULTS,
-                                filter={"video_id": video_id}
-                            )
-                            context = "\n".join([doc.page_content for doc in docs])
-                            response = get_llm_response(video_data['title'], query, context)
+                        with st.status("🎬 Processing Video...", expanded=True) as status:
+                            st.write("Fetching video details...")
+                            title = get_video_title(url)
+                            transcript = get_transcript(video_id)
                             
-                            if response:
-                                st.write(response)
-                                manager.add_to_chat_history(video_id, query, response)
-            else:
-                st.error("❌ Invalid YouTube URL")
+                            if title and transcript:
+                                st.write(f"📝 Analyzing: {title}")
+                                try:
+                                    progress_text = "Creating AI embeddings..."
+                                    my_bar = st.progress(0, text=progress_text)
+                                    for i in range(100):
+                                        time.sleep(0.01)
+                                        my_bar.progress(i + 1, text=progress_text)
+                                    
+                                    vectorstore = create_embeddings_and_store(transcript, video_id, title)
+                                    
+                                    st.session_state.video_data[video_id] = {
+                                        'title': title,
+                                        'transcript': transcript,
+                                        'vectorstore': vectorstore,
+                                        'processed': True
+                                    }
+                                    self.manager.add_to_history(video_id, title)
+                                    st.session_state.total_processed += 1
+                                    status.update(label="✅ Processing Complete!", state="complete")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Error: {str(e)}")
+                                    status.update(label="❌ Processing Failed", state="error")
+                        
+                        st.session_state.processing = False
+                    
+                    # Display Video and Chat Interface
+                    video_data = st.session_state.video_data[video_id]
+                    
+                    # Video Player
+                    with st.expander("📺 Video Player", expanded=True):
+                        st.video(url)
+                        st.caption(f"Title: {video_data['title']}")
+
+                    # Chat Interface
+                    st.markdown("### 💬 Ask About the Video")
+                    
+                    # Display chat history
+                    if video_id in st.session_state.chat_history:
+                        for chat in st.session_state.chat_history[video_id]:
+                            with st.chat_message("user"):
+                                st.write(f"🕒 {chat['timestamp']}")
+                                st.write(chat['query'])
+                            with st.chat_message("assistant"):
+                                st.write(chat['response'])
+
+                    # Query input
+                    query = st.chat_input("Type your question here...")
+                    
+                    if query:
+                        with st.chat_message("user"):
+                            st.write(query)
+                        
+                        with st.chat_message("assistant"):
+                            with st.spinner("🤔 Thinking..."):
+                                # Use filter to get only relevant documents for this video
+                                docs = video_data['vectorstore'].similarity_search(
+                                    query,
+                                    k=K_RESULTS,
+                                    filter={"video_id": video_id}
+                                )
+                                context = "\n".join([doc.page_content for doc in docs])
+                                response = LLMHandler.video_analyzer_llm(video_data['title'], query, context)
+                                
+                                if response:
+                                    st.write(response)
+                                    self.manager.add_to_chat_history(video_id, query, response)
+                else:
+                    st.error("❌ Invalid YouTube URL")
