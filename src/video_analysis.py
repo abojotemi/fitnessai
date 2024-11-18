@@ -2,12 +2,11 @@ from datetime import datetime
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
 import os
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.prompts import ChatPromptTemplate
 import yt_dlp
 import logging
 from dotenv import load_dotenv
@@ -74,7 +73,7 @@ def get_video_title(url):
 def get_transcript(video_id):
     """Get video transcript"""
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, proxies={'https': 'http://localhost:8080'})
         return ' '.join([entry['text'] for entry in transcript_list])
     except Exception as e:
         st.error(f"Error fetching transcript: {str(e)}")
