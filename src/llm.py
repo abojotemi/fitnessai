@@ -238,14 +238,23 @@ class LLMHandler:
             **Answer**: "Aim for at least 3-4 times a week, mixing strength training and cardio for balanced results."
 
             Remember, keep your responses concise and engaging for a short, 10-second video format. 
-            AND MOST IMPORTANTLY GIVE YOUR ANSWER IN A PURE TEXT FORM. DO NOT MAKE IT MARKDOWN.
-
-            QUESTION:
-            
-            {query}
+            AND MOST IMPORTANTLY GIVE YOUR ANSWER IN A PURE TEXT FORM. DO NOT MAKE IT MARKDOWN. 
             """
             )
-            response = self.llm.invoke(PROMPT)
+            human_prompt = dedent(f"""User Profile:
+                - Name: {user_info.name}
+                - Age: {user_info.age}
+                - Sex: {user_info.sex}
+                - Weight: {user_info.weight}kg
+                - Height: {user_info.height}cm
+                - Fitness Goals: {user_info.goals}
+                - Country: {user_info.country}
+                
+                QUESTION:
+                
+                {query}
+                """)
+            response = self.llm.invoke(PROMPT + human_prompt)
             
             if not response or not response.content:
                 raise ValueError("Empty response from LLM")
