@@ -8,11 +8,14 @@ import logging
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class Workout:
-    def __init__(self):
+    def __init__(self): 
         # Initialize session state variables if they don't exist
         if 'workout_plan' not in st.session_state:
             st.session_state.workout_plan = None

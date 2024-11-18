@@ -1,17 +1,21 @@
 import logging
 import time
-from typing import List, Optional, Dict, Any
 from datetime import datetime
 import streamlit as st
-
+from video_generator import VideoGenerator
 from analytics_tab import log_response_time
 from llm import LLMHandler
-from utils import speech_to_text, text_to_speech
+from utils import speech_to_text
+import os
 
-# Configure logging
+# Configure logging with more detailed format
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('app.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,9 @@ class Question:
         """Initialize Question handler"""
         logger.info("Initializing Question handler")
         self.llm = LLMHandler()
+        self.video_generator = VideoGenerator()
         self._initialize_session_state()
+        logger.debug("Question handler initialized successfully")
     
     def _initialize_session_state(self) -> None:
         """Initialize session state variables"""
@@ -34,13 +40,17 @@ class Question:
             'question_history': [],
             'current_question': '',
             'audio_file': None,
-            'last_response': None
+            'last_response': None,
+            'video_path': None,
+            'is_video_generating': False, 
+            'pending_video_generation': False,
+            'show_video_button': True,
         }
         
         for key, default_value in default_states.items():
             if key not in st.session_state:
                 st.session_state[key] = default_value
-                logger.debug(f"Initialized session state: {key}")
+                logger.debug(f"Initialized session state: {key} = {default_value}")
     
     def display(self) -> None:
         """Render questions tab with enhanced features"""
@@ -50,11 +60,113 @@ class Question:
             self._render_input_section()
             self._handle_audio_transcription()
             self._process_question()
-            self._display_question_history()
+            
+            # Create video section
+            c1,c2 = st.columns(2)
+            with c1:
+                self._display_video_section()
+            with c2:
+                self._display_question_history()
             
         except Exception as e:
             logger.error(f"Error in questions section: {e}", exc_info=True)
             st.error("An error occurred while processing your question. Please try again.")
+    
+    def _display_video_section(self) -> None:
+        """Handle video display and generation status"""
+        try:
+            # Check for pending video generation first
+            if st.session_state.pending_video_generation:
+                self._handle_pending_video_generation()
+                return
+
+            # Video generation button
+            if (st.session_state.last_response and 
+                not st.session_state.is_video_generating and 
+                st.session_state.show_video_button):
+                if st.button("🎥 Generate Video", key="generate_video"):
+                    st.session_state.pending_video_generation = True
+                    st.session_state.show_video_button = False
+                    st.rerun()  # Use rerun instead of st.rerun()
+
+            # Video display - Add debug logging and error handling
+            if st.session_state.video_path:
+                logger.info(f"Attempting to display video from path: {st.session_state.video_path}")
+                try:
+                    st.markdown("### Generated Video")
+                    st.divider()
+                    # Convert path to string and ensure it exists
+                    video_path = str(st.session_state.video_path)
+                    if not os.path.exists(video_path):
+                        logger.error(f"Video file not found at path: {video_path}")
+                        st.error("Video file not found. Please try generating again.")
+                        return
+                    # Display video with error catching
+                    st.video(video_path)
+                    logger.info("Video displayed successfully")
+                except Exception as e:
+                    logger.error(f"Error displaying video: {e}", exc_info=True)
+                    st.error("Error displaying video. Please try generating again.")
+        except Exception as e:
+            logger.error(f"Error in video section: {e}", exc_info=True)
+            st.error("An error occurred in the video section. Please try again.")
+
+    def _handle_pending_video_generation(self) -> None:
+        """Handle pending video generation"""
+        try:
+            logger.info("Starting video generation process")
+            st.session_state.is_video_generating = True
+            
+            with st.spinner("Generating Video..."):
+                video_path = self.video_generator.generate_video(st.session_state.last_response)
+                
+                if video_path:
+                    logger.info(f"Video generated successfully: {video_path}")
+                    st.session_state.video_path = video_path
+                    # Force streamlit to recognize the state change
+                    st.session_state["_video_display_key"] = time.time()
+                else:
+                    logger.error("Video generation failed")
+                    st.error("Unable to generate a video.")
+                    st.session_state.show_video_button = True
+                
+        except Exception as e:
+            logger.error(f"Error in video generation: {e}", exc_info=True)
+            st.error("Failed to generate video. Please try again.")
+            st.session_state.show_video_button = True
+        
+        finally:
+            st.session_state.is_video_generating = False
+            st.session_state.pending_video_generation = False
+            st.rerun()  # Force a rerun after video generation    
+        
+    def _generate_video_callback(self, response: str) -> None:
+        """Callback function for video generation button"""
+        try:
+            logger.info("Starting video generation process")
+            st.session_state.is_video_generating = True
+            st.session_state.show_video_button = False
+            
+            video_path = self.video_generator.generate_video(response)
+            
+            if video_path:
+                logger.info(f"Video generated successfully: {video_path}")
+                st.session_state.video_path = video_path
+                st.session_state.is_video_generating = False
+            else:
+                logger.error("Video generation failed")
+                st.error("Unable to generate a video.")
+                st.session_state.show_video_button = True
+                st.session_state.is_video_generating = False
+            
+            st.rerun()
+                
+        except Exception as e:
+            logger.error(f"Error in video generation: {e}", exc_info=True)
+            st.error("Failed to generate video. Please try again.")
+            st.session_state.show_video_button = True
+            st.session_state.is_video_generating = False
+            st.rerun()
     
     def _render_input_section(self) -> None:
         """Render the question input section"""
@@ -94,7 +206,7 @@ class Question:
                         
                         if question:
                             st.session_state.transcribed_question = question
-                            st.session_state.current_question = question  # Update text area
+                            st.session_state.current_question = question
                             st.write("Transcribed question:", question)
                             log_response_time('audio_transcription', processing_time)
                             logger.info(f"Audio transcription completed in {processing_time:.2f} seconds")
@@ -121,6 +233,11 @@ class Question:
                     if response:
                         processing_time = time.time() - start_time
                         self._handle_successful_response(question, response, processing_time)
+                        # Reset video-related states for new question
+                        st.session_state.video_path = None
+                        st.session_state.show_video_button = True
+                        st.session_state.is_video_generating = False
+                        st.session_state.pending_video_generation = False
                     else:
                         st.error("Unable to generate an answer. Please try rephrasing your question.")
                         
@@ -129,13 +246,7 @@ class Question:
                 st.error("Failed to process your question. Please try again.")
     
     def _handle_successful_response(self, question: str, response: str, processing_time: float) -> None:
-        """Handle successful question response and related features
-        
-        Args:
-            question: Original question text
-            response: Generated answer
-            processing_time: Time taken to process the question
-        """
+        """Handle successful question response"""
         try:
             # Log metrics
             log_response_time('question_answering', processing_time)
@@ -148,19 +259,6 @@ class Question:
             st.markdown("### Answer:")
             st.markdown(response)
             st.session_state.last_response = response
-            
-            # Audio response option
-            if st.button("🔊 Listen to Answer", key="audio_response"):
-                try:
-                    with st.spinner("Generating audio..."):
-                        audio_html = text_to_speech(response)
-                        st.markdown(audio_html, unsafe_allow_html=True)
-                except Exception as e:
-                    logger.error(f"Error generating audio response: {e}", exc_info=True)
-                    st.error("Unable to generate audio. Please try again.")
-            
-            # Generate and display follow-up questions
-            self._display_follow_up_questions(question, response)
             
         except Exception as e:
             logger.error(f"Error handling response: {e}", exc_info=True)
@@ -175,29 +273,7 @@ class Question:
         }
         st.session_state.question_history.append(history_entry)
         logger.debug("Added new entry to question history")
-    
-    def _display_follow_up_questions(self, original_question: str, response: str) -> None:
-        """Generate and display follow-up questions
-        
-        Args:
-            original_question: The user's original question
-            response: The generated response
-        """
-        try:
-            follow_ups = self.llm.get_follow_up_questions(original_question, response)
-            
-            if follow_ups:
-                st.markdown("### Related Questions You Might Want to Ask:")
-                
-                for i, question in enumerate(follow_ups[:self.MAX_FOLLOW_UP_QUESTIONS], 1):
-                    if st.button(f"🔄 {question}", key=f"follow_up_{i}"):
-                        st.session_state.current_question = question
-                        st.rerun()
-                        
-        except Exception as e:
-            logger.error(f"Error generating follow-up questions: {e}", exc_info=True)
-            # Silently fail for follow-up questions as they're not critical
-    
+
     def _display_question_history(self) -> None:
         """Display question history with filtering options"""
         if st.session_state.question_history:
@@ -208,6 +284,3 @@ class Question:
                 with st.expander(f"Q: {entry['question'][:100]}... ({entry['timestamp']})"):
                     st.markdown(f"**Question:** {entry['question']}")
                     st.markdown(f"**Answer:** {entry['response']}")
-                    if st.button("🔄 Ask Again", key=f"replay_{entry['timestamp']}"):
-                        st.session_state.current_question = entry['question']
-                        st.rerun()

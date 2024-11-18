@@ -1,14 +1,14 @@
 # food_generator.py
 import time
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
 import streamlit as st
 import logging
-from pathlib import Path
-import base64
 from image_processing import generate_food_image
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -131,7 +131,6 @@ class FoodImageGenerator:
                         timestamp=time.strftime('%Y-%m-%d %H:%M:%S')
                     )
                 )
-                st.success("Image generated successfully!")
                 
                 # Display the generated image
                 st.image(image_data, caption=prompt)

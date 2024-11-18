@@ -9,3 +9,4 @@ video_cache/
 *.db
 list.txt
 *.log
+static/

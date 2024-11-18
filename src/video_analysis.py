@@ -16,7 +16,10 @@ import time
 from llm import LLMHandler
 
 # Initialize logging and environment
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
@@ -140,6 +143,8 @@ class VideoRAGManager:
             st.session_state.processing = False
         if 'chat_history' not in st.session_state:
             st.session_state.chat_history = {}
+        if 'video_id' not in st.session_state:
+            st.session_state.video_id = None
 
     def add_to_history(self, video_id, title):
         if video_id not in [v['id'] for v in st.session_state.video_history]:
@@ -197,6 +202,8 @@ class VideoAnalyzer:
             for video in st.session_state.video_history:
                 with st.expander(f"📺 {video['title'][:30]}...", expanded=False):
                     st.write(f"Analyzed: {video['timestamp']}")
+                    st.divider()
+                    st.write(video['title'])
                     
 
             # Help Section
@@ -221,31 +228,31 @@ class VideoAnalyzer:
             # URL Input with clear button
             url_col1, url_col2 = st.columns([4, 1])
             with url_col1:
-                url = st.text_input("🔗 Enter YouTube URL:", key="url_input", 
-                                placeholder="https://youtube.com/watch?v=...")
+                st.session_state.current_video = st.text_input("🔗 Enter YouTube URL:", key="url_input", 
+                                placeholder="https://youtube.com/watch?v=...", value=st.session_state.current_video or "")
             with url_col2:
                 if st.button("🗑️ Clear", type="secondary"):
                     if 'url_input' in st.session_state:
                         st.session_state.url_input = ""
                         st.rerun()
 
-            if url and not st.session_state.processing:
-                video_id = get_video_id(url)
-                if video_id:
+            if st.session_state.current_video and not st.session_state.processing:
+                st.session_state.video_id = get_video_id(st.session_state.current_video)
+                if st.session_state.video_id:
                     # Get vectorstore for video
-                    vectorstore = self.manager.get_vectorstore(video_id)
+                    vectorstore = self.manager.get_vectorstore(st.session_state.video_id)
                     
                     # Process Video if not already processed
-                    if video_id not in st.session_state.video_data:
+                    if st.session_state.video_id not in st.session_state.video_data:
                         st.session_state.processing = True
                         
                         with st.status("🎬 Processing Video...", expanded=True) as status:
                             st.write("Fetching video details...")
-                            title = get_video_title(url)
-                            transcript = get_transcript(video_id)
+                            title = get_video_title(st.session_state.current_video)
+                            transcript = get_transcript(st.session_state.video_id)
                             
                             if title and transcript:
-                                st.write(f"📝 Analyzing: {title}")
+                                st.write(f"📝 Analyzing: {title}")  
                                 try:
                                     progress_text = "Creating AI embeddings..."
                                     my_bar = st.progress(0, text=progress_text)
@@ -253,15 +260,15 @@ class VideoAnalyzer:
                                         time.sleep(0.01)
                                         my_bar.progress(i + 1, text=progress_text)
                                     
-                                    vectorstore = create_embeddings_and_store(transcript, video_id, title)
+                                    vectorstore = create_embeddings_and_store(transcript, st.session_state.video_id, title)
                                     
-                                    st.session_state.video_data[video_id] = {
+                                    st.session_state.video_data[st.session_state.video_id] = {
                                         'title': title,
                                         'transcript': transcript,
                                         'vectorstore': vectorstore,
                                         'processed': True
                                     }
-                                    self.manager.add_to_history(video_id, title)
+                                    self.manager.add_to_history(st.session_state.video_id, title)
                                     st.session_state.total_processed += 1
                                     status.update(label="✅ Processing Complete!", state="complete")
                                     
@@ -272,19 +279,19 @@ class VideoAnalyzer:
                         st.session_state.processing = False
                     
                     # Display Video and Chat Interface
-                    video_data = st.session_state.video_data[video_id]
+                    video_data = st.session_state.video_data[st.session_state.video_id]
                     
                     # Video Player
                     with st.expander("📺 Video Player", expanded=True):
-                        st.video(url)
+                        st.video(st.session_state.current_video)
                         st.caption(f"Title: {video_data['title']}")
 
                     # Chat Interface
                     st.markdown("### 💬 Ask About the Video")
                     
                     # Display chat history
-                    if video_id in st.session_state.chat_history:
-                        for chat in st.session_state.chat_history[video_id]:
+                    if st.session_state.video_id in st.session_state.chat_history:
+                        for chat in st.session_state.chat_history[st.session_state.video_id]:
                             with st.chat_message("user"):
                                 st.write(f"🕒 {chat['timestamp']}")
                                 st.write(chat['query'])
@@ -304,13 +311,13 @@ class VideoAnalyzer:
                                 docs = video_data['vectorstore'].similarity_search(
                                     query,
                                     k=K_RESULTS,
-                                    filter={"video_id": video_id}
+                                    filter={"video_id": st.session_state.video_id}
                                 )
                                 context = "\n".join([doc.page_content for doc in docs])
                                 response = LLMHandler.video_analyzer_llm(video_data['title'], query, context)
                                 
                                 if response:
                                     st.write(response)
-                                    self.manager.add_to_chat_history(video_id, query, response)
+                                    self.manager.add_to_chat_history(st.session_state.video_id, query, response)
                 else:
                     st.error("❌ Invalid YouTube URL")

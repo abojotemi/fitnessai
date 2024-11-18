@@ -99,7 +99,7 @@ class Profile:
         """Render profile tab content with improved error handling and validation"""
         try:
             st.header("Your Profile")
-            
+            st.write("Please fill this form before moving on.")
             with st.form("profile_form"):
                 # Get current values from session state
                 current_info = st.session_state.get('user_info', None)
@@ -183,7 +183,7 @@ class Profile:
                         
                         # Save profile
                         if self._save_profile(profile_data):
-                            st.success("Profile saved successfully! 🎉")
+                            st.success(f"Profile saved successfully! 🎉. Welcome {profile_data['name']} !!!")
                             st.balloons()
                             
                             # Log successful profile creation
@@ -191,6 +191,7 @@ class Profile:
                             
                             # Prompt user to check other features
                             st.info("Now you can explore other features of the app!")
+                
                             
         except Exception as e:
             logger.error(f"Error displaying profile form: {str(e)}", exc_info=True)

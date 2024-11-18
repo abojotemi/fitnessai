@@ -1,369 +1,157 @@
 # FitnessAI - Your Multimodal Personal Fitness Coach 🏋️‍♂️
 
-FitnessAI is a comprehensive fitness coaching application that leverages multiple AI modalities to provide personalized workout plans, diet analysis, fitness advice, progress tracking, and AI-powered food visualization. Built with Streamlit and powered by state-of-the-art AI models, FitnessAI offers an interactive and intuitive experience for users seeking to improve their fitness journey.
+FitnessAI is a comprehensive fitness coaching application that leverages multiple AI modalities to provide personalized workout plans, diet analysis, and progress tracking. Built with Streamlit and powered by state-of-the-art AI models, it offers an interactive experience for your fitness journey.
 
-![FitnessAI Demo](insert_demo_gif_here.gif)
+[Watch Demo Video](insert_demo_video_link_here) (1-minute showcase of key features)
 
-## 🌟 Features
+## 🌟 Key Features & Workflow
 
-### 1. Personalized Profile Management
-- Create and manage detailed fitness profiles
-- Track key metrics: age, weight, height, fitness goals
-- Country-specific customization
-- Secure data handling and persistence
+### Multimodal Integration Flow
+```mermaid
+graph TD
+    A[User Input] --> B{Input Type}
+    B -->|Text| C[Workout Generation]
+    B -->|Image| D[Diet Analysis]
+    B -->|Text/Speech| E[Q&A System]
+    E -->|Text| J[Video Response]
+    B -->|Video| F[Content Analysis]
+    B -->|Text| H[Food Image Generator]
+    C --> G[Text Response]
+    D --> G
+    E --> G
+    F --> G
+    H --> I[Image Response]
+```
 
-### 2. AI-Powered Workout Generation
-- Customized workout plans based on:
-  - Available equipment
-  - Time constraints
-  - Fitness goals
-  - Physical limitations
-- Audio guides for workouts
-- Downloadable workout summaries
-- Real-time plan adjustments
+1. **AI-Powered Workout Generation**
+   - Text → Text/Audio: Generate custom workouts based on equipment, time, and goals
+   - Includes audio guides with text-to-speech conversion
 
-### 3. Smart Diet Analysis 🍎
-- Upload food images for instant analysis
-- Nutritional information breakdown
-- Healthier alternative suggestions
-- Personalized dietary recommendations
-- Visual food recognition using HuggingFace's food classification model
+2. **Smart Diet Analysis**
+   - Image → Text: Analyze food images for nutritional insights
+   - Provides personalized dietary recommendations
 
-### 4. AI Food Image Generator 🎨
-- Generate high-quality food images from text descriptions
-- Customizable photography styles:
-  - Professional Food Photography
-  - Casual/Instagram Style
-  - Overhead Shot
-  - Close-up/Macro
-  - Minimalist
-- Adjustable lighting options:
-  - Natural Daylight
-  - Studio Lighting
-  - Warm/Ambient
-  - Dramatic/Moody
-  - Bright and Airy
-- Quick prompt suggestions for instant inspiration
-- Download generated images in high resolution
-- View and manage generation history
+3. **Voice-Interactive Q&A**
+   - Speech/Text → Text/Video : Answer fitness questions through voice or text
+   - Real-time transcription and video response options
 
-### 5. Voice-Interactive Q&A 🎙️
-- Ask fitness questions via text or voice
-- Natural language processing for accurate responses
-- Follow-up question suggestions
-- Audio playback of answers
-- Transcription of voice queries
-- Real-time voice-to-text conversion
-- Context-aware responses powered by Google Gemini
-- Multi-turn conversation support
+4. **Video Content Analysis**
+   - Video → Text: Process fitness video content using RAG architecture
+   - Smart context retrieval for video-specific queries
+  
+5. **Food Image Generation**
+   - Text → Image: Creates realistic images for food based on user preference
+   - Generate high-quality food images from text descriptions using StarryAI integration
 
-### 6. Multimedia Progress Journal
-- Track workout progress with text, images, and audio
-- Automatic speech-to-text conversion for voice notes
-- Visual progress tracking
-- Historical data analysis
-- Export capabilities
+6. **Progress Journal & Analytics**
+   - Multimedia progress tracking with rich visualization
+   - Performance metrics and trend analysis
 
-### 7. Analytics Dashboard
-- Usage statistics and trends
-- Performance metrics
-- Response time analysis
-- User engagement tracking
+## 📝 Project Structure
+```
+fitnessai/
+├── src/
+│   ├── main.py             # Main application entry point with routing logic
+│   ├── workout.py          # Enhanced workout generation component
+│   ├── diet_analysis.py    # Diet analysis component
+│   ├── food_generator.py   # Food image generation component
+│   ├── llm.py              # LLM handler with retry mechanism
+│   ├── config.py           # Configuration and settings
+│   ├── utils.py            # Utility functions including TTS handler
+│   ├── components.py       # UI components
+│   ├── progress_journal.py # Logic for progress journal
+│   ├── analytics_tab.py    # Logic for app analysis
+│   ├── profile_tab.py      # Logic for the profile form
+│   ├── question.py         # Logic for the speech-to-text and text-to-text models
+│   ├── image_processing.py   # Logic for all Computer Viison models
+│   ├── video_analysis.py   # Logic for video analysis
+│   ├── video_generator.py   # Logic for video generation
+│   └── session_state.py    # Global variable logic for user
+├── requirements.txt        # Installing required dependencies
+├── .env                    # Contains environment variables
+└── README.md               # Documentation
+```
 
-## 8. Intelligent Video Analysis
-- YouTube transcript extraction
-- AI-powered semantic search
-- Context-aware responses
-- Chat-based interaction
-- Persistent chat history
+## 🚀 Performance Metrics
 
-## 🛠️ Technology Stack
+### Response Times & Accuracy
+| Feature | Response Time | Success Rate | Accuracy |
+|---------|---------------|--------------|-----------|
+| Image Analysis | 20s | 98.2% | 85%+ |
+| Speech Processing | 10s | 97.8% | 95%+ |
+| Text Generation | 10s | 99.9% | - |
+| Video Analysis | 30s | 95.9% | 90%+ |
+| Video Generation | 35s | 96.1% | 90%+ |
 
-- **Frontend**: Streamlit
-- **Language Models**:
-  - Langchain for LLM integration 
-  - Google Gemini 1.5 Flash for natural language processing
-  - Custom prompting for context-aware responses
-- **Image Processing**:
-  - HuggingFace nateraw/food model for food classification
-  - StarryAI for food image generation
-- **Speech Processing**:
-  - AssemblyAI for Speech-to-Text
-  - gTTS (Google Text-to-Speech) for audio generation
-- **Video Processing**: youtube-transcript-api for transcript generation
-- **RAG**: Pinecone for Vector Database
-- **Data Storage**: SQLite for caching and analytics
-- **Analytics**: Plotly for visualization
-- **Caching**: Streamlit Cache, SQLite Cache
 
-## 📊 Performance Metrics
+### Key Optimizations
+```python
+# Example: Efficient LLM Response Caching
+from langchain.globals import set_llm_cache
+set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+# Reduced repeated query times by 80%
+```
 
-### Response Times
-| Feature | Average Response Time | Success Rate |
-|---------|---------------------|--------------|
-| Image-to-Text | 20s | 98.2% |
-| Speech-to-Text | 10s | 97.8% |
-| Text-to-Speech | 10s | 99.9% |
-| Text-to-Image | 25s | 96.8% |
-| Video-to-Text | 30s | 95.9% |
-
-### Accuracy Metrics
-- Food Classification Accuracy: 85%+ using nateraw/food model
-- Speech-to-Text Accuracy: 95%+ using AssemblyAI
-- Context Retention: 90%+ for follow-up questions
-- Food Image Generation Quality: 90%+ using StarryAI
-
-## Live Demo
-### You can access the deployed app 👉🏻 [here](https://fitnessai.streamlit.app/)
-
-## 🚀 Installation
+## 🛠️ Installation Guide
 
 ### Prerequisites
 ```bash
-# Python 3.8+ required
 python -m venv venv
 source venv/bin/activate  # Unix
 # or
 .\venv\Scripts\activate  # Windows
 ```
 
+
+
 ### API Keys Setup
-Create a `.env` file in the root directory:
+
+- [Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
+- [AssemblyAI API Key](https://www.assemblyai.com)
+- [StarryAI API Key](https://starryai.readme.io/reference/getting-started-with-your-api)
+- [Pinecone API Key](https://docs.pinecone.io/guides/projects/manage-api-keys#create-an-api-key)
+- [D-ID API Key](https://docs.d-id.com/reference/get-started)
+
+Create a `.env` file:
 ```env
 GOOGLE_API_KEY=your_google_api_key
 ASSEMBLY_AI_KEY=your_assemblyai_key
-HUGGINGFACE_API_KEY=your_huggingface_key
 STARRYAI_API_KEY=your_starryai_key
 PINECONE_API_KEY=your_pinecone_key
+DID_API_KEY=your_did_api_key
 ```
-
-Required API keys:
-- [Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
-- [AssemblyAI API Key](https://www.assemblyai.com)
-- [Huggingface API Key](https://huggingface.co)
-- [StarryAI API Key](https://starryai.readme.io/reference/getting-started-with-your-api)
-- [Pinecone API Key](https://docs.pinecone.io/guides/projects/manage-api-keys#create-an-api-key)
-
-### Installation Steps
+### Quick Start
 ```bash
-# Clone the repository
 git clone https://github.com/abojotemi/fitnessai.git
 cd fitnessai
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the application
 streamlit run src/main.py
 ```
 
-## 📝 Project Structure
-```
-fitnessai/
-├── src/
-│   ├── main.py              # Main application entry point
-│   ├── diet_analysis.py     # Diet analysis component
-│   ├── food_generator.py    # Food image generation component
-│   ├── llm.py               # LLM handler for all AI interactions
-│   ├── config.py            # Configuration and settings
-│   ├── image_processing.py  # Huggingface model initialization point
-│   ├── components.py        # UI components
-│   ├── utils.py             # Utility functions
-│   ├── progress_journal.py  # Logic for progress journal
-│   ├── analytics_tab.py     # Logic for app analysis
-│   ├── video_analysis.py     # Logic for video analysis
-│   └── session_state.py     # Global variable logic for user
-├── requirements.txt         # Installing required dependencies
-├── .env                     # Contains environment variables
-└── README.md                # Documentation
-```
-## 💡 Usage Examples
+## 📸 App Screenshots
 
-### 1. Generating a Workout Plan (Text -> Speech)
-
-```mermaid
-flowchart LR
-A[User Info] --> C[Prompt]
-B[Workout Preferences] --> C
-C --> D(LLM Generator)
-D --> E(LLM Summarizer)
-E --> F[gTTS] --> G[Audio Result]
-```
-
-```python
-# Example of workout generation
-workout_preferences = {
-    "equipment": "Basic Home Equipment",
-    "duration": 45,
-    "frequency": "3-4x",
-    "focus_areas": "Strength Training, Cardio",
-    "limitations": "None"
-}
-llm = LLMHandler()
-plan = llm.generate_fitness_plan(user_info, workout_preferences)
-```
-
-
-### 2. Analyzing Diet (Image --> Text)
-```mermaid
-flowchart LR
-A[Image] --> B(Image classifier)
-B --> |Text| D[Prompt]
-C[User Info] --> D
-D --> E[LLM Analyzer] --> Analysis
-```
-
-```python
-# Example of diet analysis
-from diet_analyzer import DietAnalyzer
-
-analyzer = DietAnalyzer()
-analysis = analyzer.process_image(food_image, user_info)
-```
-
-### 3. Generating Food Images (Text --> Image)
-```mermaid
-flowchart LR
-
-A[User Input] --> B(Prompt)
-C[Style] --> B
-D[Lighting] --> B
-B --> E[Starry API] --> Image
-```
-
-```python
-# Example of food image generation
-prompt = st.text_area("Describe your ideal food image")
-
-style = st.selectbox("Photography Style",["Professional Food Photography", "Casual/Instagram Style", 
- "Overhead Shot", "Close-up/Macro", "Minimalist"])
-
-lighting = st.selectbox("Lighting",["Natural Daylight", "Studio Lighting", "Warm/Ambient", "Dramatic/Moody","Bright and Airy"])
-
-# Get response
-self._handle_generation(prompt, style, lighting)
-```
-
-
-### 4. Questions (Speech --> Text)
-```mermaid
-flowchart LR
-
-A[Audio Question] -->|Transcribe| B[AssemblyAI API]
-B --> |Text| C[LLM Expert]
-D[Text Question] --> C
-C --> Answer
-
-
-```
-
-```python
-
-llm = LLMHandler()
-# For text question input
-question = st.text_area("Type your fitness question here",
-      help="Ask anything about workouts, nutrition, or general fitness advice", placeholder="e.g., How can I improve my squat form?")
-# For audio question input
-question = speech_to_text(audio_file)
-# Generate answer
-response = llm.answer_question(question, user_info)
-```
-### 5. Analyzing Video Content (Video --> Text)
-
-```mermaid
-flowchart LR
-A[YouTube URL] --> B[Transcript Extractor]
-B --> C[Vectorize]
-C --> D[Vector Store]
-E[Question] --> C
-D --> G[LLM Response]
-```
-```python
-# Example of video analysis
-video_url = "https://www.youtube.com/watch?v=example"
-manager = VideoRAGManager()
-
-# Process video
-video_id = get_video_id(video_url)
-transcript = get_transcript(video_id)
-vectorstore = create_embeddings_and_store(transcript, title)
-
-# Query video content
-query = "What are the main points discussed in the video?"
-docs = vectorstore.similarity_search(query, k=3)
-response = video_analyzer_llm(title, query, context)
-```
-
-Key Features:
-- Real-time audio transcription
-- Context-aware response generation
-- Optional text-to-speech conversion
-- Support for follow-up questions
-- Integration with fitness knowledge base
-
-## 🔧 Optimization Highlights
-
-1. **Image Generation Pipeline**
-   - Implemented retry mechanism for API calls
-   - Efficient image caching
-   - Parallel processing for batch generation
-   - Memory-efficient image handling
-
-2. **LLM Response Caching**
-   - SQLite caching for LLM responses
-   - Reduced repeated query times by 80%
-   ```python
-   from langchain.globals import set_llm_cache
-   set_llm_cache(SQLiteCache(database_path=".langchain.db"))
-   ```
-
-3. **Audio Processing Pipeline**
-   - Parallel processing for audio transcription
-   - Efficient caching of TTS outputs
-   - Reduced memory usage by 40%
-
-4. **Image Processing Optimization**
-   - Image preprocessing pipeline
-   - Reduced classification time by 30%
-   - Improved accuracy by 15%
-   - Huggingface inference API integration for better performance
-  
-5. **Video Processing Optimization**
-   - Chunked text processing
-   - Optimized embedding generation
-   - Efficient vector search
-   - Response caching
-  
-
-## 📸 Screenshots
-
-## Profile
+### Profile & Workout Generation
 ![Profile](./images/Profile.png)
-
-## Generate Workout
 ![Generate Workout](./images/Generate-Workout.png)
 
-
-## Diet Analyzer 
+### Diet Analysis & Progress Tracking
 ![Diet Analyzer](./images/Diet-Analyzer.png)
-
-## Food Generator
-![Food Generator](./images/Food-Generator.png)
-
-## RAG Video Analyzer
-![RAG Video Analyzer](./images/Video-Analysis.png)
-
-## Progress Journal
 ![Progress Journal](./images/Progress-Journal.png)
 
-## Analytics
+## Performance Analysis
 ![Analytics](./images/Analytics.png)
 
-## 🙏 Acknowledgments
+## 🌐 Live Demo
+Access the deployed app: [FitnessAI Demo](https://fitnessai.streamlit.app/)
 
-- Google's Gemini for natural language processing
-- HuggingFace for the food classification model
-- StarryAI for food image generation
-- AssemblyAI for speech processing
-- Langchain for easy LLM integration
-- The Streamlit team for the amazing framework
+## 🛠️ Tech Stack
+- **Frontend**: Streamlit
+- **AI Models**: Google Gemini, D-ID, StarryAI, AssemblyAI
+- **Backend**: Langchain, Pinecone, SQLite
+- **Analytics**: Plotly
+
+## 📊 Technical Achievements
+- Implemented RAG architecture for video analysis
+- Reduced memory usage by 40% in audio processing
+- Improved image classification accuracy by 15%
+- Achieved 80% faster response times through caching

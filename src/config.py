@@ -1,5 +1,12 @@
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 @dataclass
 class AppConfig:
