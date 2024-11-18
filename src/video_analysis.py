@@ -71,14 +71,46 @@ def get_video_title(url):
         return None
 
 def get_transcript(video_id):
-    """Get video transcript"""
+    """Get video transcript with manual transcript handling"""
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        return ' '.join([entry['text'] for entry in transcript_list])
+        # Get list of available transcripts
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
+        # Try to get English transcript first
+        try:
+            transcript = transcript_list.find_transcript(['en'])
+        except:
+            # If English isn't available, get the first available transcript
+            available_transcripts = transcript_list.manual_transcripts
+            if available_transcripts:
+                transcript = list(available_transcripts.values())[0]
+            else:
+                # Try auto-generated transcripts
+                available_transcripts = transcript_list.generated_transcripts
+                if available_transcripts:
+                    transcript = list(available_transcripts.values())[0]
+                else:
+                    raise Exception("No transcripts available")
+
+        # Fetch the actual transcript data
+        transcript_data = transcript.fetch()
+        
+        # Safely extract text
+        transcript_texts = []
+        for entry in transcript_data:
+            if isinstance(entry, dict) and 'text' in entry:
+                transcript_texts.append(entry['text'])
+                
+        if not transcript_texts:
+            raise Exception("No valid text entries found")
+            
+        return ' '.join(transcript_texts)
+        
     except Exception as e:
+        logger.error(f"Error fetching transcript: {str(e)}")
         st.error(f"Error fetching transcript: {str(e)}")
         return None
-
+    
 def create_embeddings_and_store(text, video_id, title):
     """Create embeddings and store in Pinecone"""
     try:
