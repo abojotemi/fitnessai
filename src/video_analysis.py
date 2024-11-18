@@ -110,7 +110,7 @@ def get_transcript(video_id):
         logger.error(f"Error fetching transcript: {str(e)}")
         st.error(f"Error fetching transcript: {str(e)}")
         return None
-    
+        
 def create_embeddings_and_store(text, video_id, title):
     """Create embeddings and store in Pinecone"""
     try:
