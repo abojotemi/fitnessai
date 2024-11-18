@@ -73,7 +73,7 @@ def get_video_title(url):
 def get_transcript(video_id):
     """Get video transcript"""
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, proxies={'https': 'http://localhost:8080'})
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         return ' '.join([entry['text'] for entry in transcript_list])
     except Exception as e:
         st.error(f"Error fetching transcript: {str(e)}")
