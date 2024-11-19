@@ -1,4 +1,6 @@
 from datetime import datetime
+import random
+from typing import Dict
 import httpx
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -12,9 +14,9 @@ import yt_dlp
 import logging
 from dotenv import load_dotenv
 import time
+import requests
 
 from llm import LLMHandler
-from proxy import ProxyRotator
 
 # Initialize logging and environment
 logging.basicConfig(
@@ -46,6 +48,8 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
     )
 # System prompt remains the same
 
+
+
 def get_video_id(url):
     """Extract video ID from YouTube URL"""
     parsed_url = urlparse(url)
@@ -71,6 +75,35 @@ def get_video_title(url):
     except Exception as e:
         st.error(f"Error fetching video title: {str(e)}")
         return None
+
+class ProxyRotator:
+    def __init__(self):
+        self.proxies = []
+        self.update_proxy_list()
+    
+    def update_proxy_list(self):
+        """Update list of free proxies"""
+        try:
+            # Get free proxies from public API
+            response = requests.get('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all')
+            if response.status_code == 200:
+                self.proxies = [f"http://{proxy}" for proxy in response.text.split('\n') if proxy.strip()]
+        except Exception as e:
+            logger.error(f"Error updating proxy list: {e}")
+    
+    def get_proxy(self) -> Dict[str, str]:
+        """Get a random proxy from the list"""
+        if not self.proxies:
+            self.update_proxy_list()
+        if self.proxies:
+            proxy = random.choice(self.proxies)
+            return {
+                'http': proxy,
+                'https': proxy
+            }
+        return None
+
+
 
 proxy_rotator = ProxyRotator()
 def get_transcript_without_proxy(video_id):
