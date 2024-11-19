@@ -1,4 +1,5 @@
 from datetime import datetime
+import httpx
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 import time
 
 from llm import LLMHandler
+from proxy import ProxyRotator
 
 # Initialize logging and environment
 logging.basicConfig(
@@ -70,98 +72,110 @@ def get_video_title(url):
         st.error(f"Error fetching video title: {str(e)}")
         return None
 
-def get_transcript(video_id):
-    """Get video transcript with enhanced error handling and fallback options"""
+proxy_rotator = ProxyRotator()
+def get_transcript_without_proxy(video_id):
+    """Fallback method to get transcript without proxy"""
     try:
         # Get list of available transcripts
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         
-        # Initialize variables to track transcript attempts
-        transcript = None
-        transcript_data = None
-        
-        # Try different transcript sources in order of preference
+        # Try to get English transcript first
         try:
-            # 1. Try English manual transcript
-            transcript = transcript_list.find_manually_created_transcript(['en'])
+            transcript = transcript_list.find_transcript(['en'])
         except:
-            try:
-                # 2. Try English auto-generated transcript
-                transcript = transcript_list.find_generated_transcript(['en'])
-            except:
-                try:
-                    # 3. Try any manual transcript
-                    available_transcripts = transcript_list.manual_transcripts
-                    if available_transcripts:
-                        transcript = list(available_transcripts.values())[0]
-                except:
-                    try:
-                        # 4. Try any auto-generated transcript
-                        available_transcripts = transcript_list.generated_transcripts
-                        if available_transcripts:
-                            transcript = list(available_transcripts.values())[0]
-                    except:
-                        # 5. Try getting any available transcript
-                        all_transcripts = transcript_list.find_transcript(['en'])
-                        if all_transcripts:
-                            transcript = all_transcripts
+            # If English isn't available, get the first available transcript
+            available_transcripts = transcript_list.manual_transcripts
+            if available_transcripts:
+                transcript = list(available_transcripts.values())[0]
+            else:
+                # Try auto-generated transcripts
+                available_transcripts = transcript_list.generated_transcripts
+                if available_transcripts:
+                    transcript = list(available_transcripts.values())[0]
+                else:
+                    raise Exception("No transcripts available")
 
-        # If we found a transcript, try to translate it if not in English
-        if transcript:
-            try:
-                if transcript.language_code != 'en':
-                    transcript = transcript.translate('en')
-            except:
-                pass  # Use original transcript if translation fails
-            
-            transcript_data = transcript.fetch()
-
-        if not transcript_data:
-            raise Exception("No transcript data could be retrieved")
-
-        # Extract and clean transcript text
+        # Fetch the actual transcript data
+        transcript_data = transcript.fetch()
+        
+        # Safely extract text
         transcript_texts = []
         for entry in transcript_data:
             if isinstance(entry, dict) and 'text' in entry:
-                # Clean text: remove unnecessary whitespace and normalize
-                text = ' '.join(entry['text'].split())
-                if text:
-                    transcript_texts.append(text)
-
+                transcript_texts.append(entry['text'])
+                
         if not transcript_texts:
-            raise Exception("No valid text entries found in transcript")
-
-        return ' '.join(transcript_texts)
-
-    except Exception as e:
-        error_message = str(e)
-        # Add more specific error messages for common issues
-        if "Subtitles are disabled" in error_message:
-            error_message = (
-                f"Subtitles are disabled for this video {video_id}. "
-                "Please try a different video or ensure subtitles are enabled. "
-                "Common causes:\n"
-                "1. Video owner has disabled subtitles\n"
-                "2. Video is private or age-restricted\n"
-                "3. Video is too new and auto-captions aren't ready yet"
-            )
-        elif "Could not retrieve" in error_message:
-            error_message = (
-                f"Could not retrieve transcript for video {video_id}. "
-                "Please verify that:\n"
-                "1. The video URL is correct\n"
-                "2. The video is publicly available\n"
-                "3. The video has captions enabled"
-            )
+            raise Exception("No valid text entries found")
             
-        logger.error(f"Transcript error: {error_message}")
-        st.error(error_message)
-        return None
+        return ' '.join(transcript_texts)
         
     except Exception as e:
-        logger.error(f"Error fetching transcript: {str(e)}")
-        st.error(f"Error fetching transcript: {str(e)}")
+        logger.error(f"Error fetching transcript without proxy: {str(e)}")
+        st.error(f"Error fetching transcript without proxy: {str(e)}")
         return None
+
+def get_transcript(video_id):
+    """Get transcript with proxy rotation and fallback"""
+    max_retries = 3
+    retries = 0
+    
+    while retries < max_retries:
+        proxies = proxy_rotator.get_proxy()
+        if not proxies:
+            logger.warning("No proxies available. Trying without proxy...")
+            return get_transcript_without_proxy(video_id)
+        
+        try:
+            # Configure proxy
+            proxies_transport = httpx.HTTPTransport(proxy=proxies['https'])
+            client = httpx.Client(transport=proxies_transport, timeout=10.0)  # 10 second timeout
+            YouTubeTranscriptApi.http_client = client
+            
+            # Get list of available transcripts
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # Try to get English transcript first
+            try:
+                transcript = transcript_list.find_transcript(['en'])
+            except:
+                # If English isn't available, get the first available transcript
+                available_transcripts = transcript_list.manual_transcripts
+                if available_transcripts:
+                    transcript = list(available_transcripts.values())[0]
+                else:
+                    # Try auto-generated transcripts
+                    available_transcripts = transcript_list.generated_transcripts
+                    if available_transcripts:
+                        transcript = list(available_transcripts.values())[0]
+                    else:
+                        raise Exception("No transcripts available")
+
+            # Fetch the actual transcript data
+            transcript_data = transcript.fetch()
+            
+            # Safely extract text
+            transcript_texts = []
+            for entry in transcript_data:
+                if isinstance(entry, dict) and 'text' in entry:
+                    transcript_texts.append(entry['text'])
+            
+            if not transcript_texts:
+                raise Exception("No valid text entries found")
+            
+            return ' '.join(transcript_texts)
+            
+        except Exception as e:
+            logger.error(f"Error with proxy {proxies['https']}: {str(e)}")
+            retries += 1
+            if retries == max_retries:
+                logger.warning("Max retries reached. Trying without proxy...")
+                return get_transcript_without_proxy(video_id)
+        
+        finally:
+            if 'client' in locals():
+                client.close()
+    
+    return None
         
 def create_embeddings_and_store(text, video_id, title):
     """Create embeddings and store in Pinecone"""
