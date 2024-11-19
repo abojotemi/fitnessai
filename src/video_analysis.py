@@ -71,40 +71,92 @@ def get_video_title(url):
         return None
 
 def get_transcript(video_id):
-    """Get video transcript with manual transcript handling"""
+    """Get video transcript with enhanced error handling and fallback options"""
     try:
         # Get list of available transcripts
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         
-        # Try to get English transcript first
-        try:
-            transcript = transcript_list.find_transcript(['en'])
-        except:
-            # If English isn't available, get the first available transcript
-            available_transcripts = transcript_list.manual_transcripts
-            if available_transcripts:
-                transcript = list(available_transcripts.values())[0]
-            else:
-                # Try auto-generated transcripts
-                available_transcripts = transcript_list.generated_transcripts
-                if available_transcripts:
-                    transcript = list(available_transcripts.values())[0]
-                else:
-                    raise Exception("No transcripts available")
-
-        # Fetch the actual transcript data
-        transcript_data = transcript.fetch()
+        # Initialize variables to track transcript attempts
+        transcript = None
+        transcript_data = None
         
-        # Safely extract text
+        # Try different transcript sources in order of preference
+        try:
+            # 1. Try English manual transcript
+            transcript = transcript_list.find_manually_created_transcript(['en'])
+        except:
+            try:
+                # 2. Try English auto-generated transcript
+                transcript = transcript_list.find_generated_transcript(['en'])
+            except:
+                try:
+                    # 3. Try any manual transcript
+                    available_transcripts = transcript_list.manual_transcripts
+                    if available_transcripts:
+                        transcript = list(available_transcripts.values())[0]
+                except:
+                    try:
+                        # 4. Try any auto-generated transcript
+                        available_transcripts = transcript_list.generated_transcripts
+                        if available_transcripts:
+                            transcript = list(available_transcripts.values())[0]
+                    except:
+                        # 5. Try getting any available transcript
+                        all_transcripts = transcript_list.find_transcript(['en'])
+                        if all_transcripts:
+                            transcript = all_transcripts
+
+        # If we found a transcript, try to translate it if not in English
+        if transcript:
+            try:
+                if transcript.language_code != 'en':
+                    transcript = transcript.translate('en')
+            except:
+                pass  # Use original transcript if translation fails
+            
+            transcript_data = transcript.fetch()
+
+        if not transcript_data:
+            raise Exception("No transcript data could be retrieved")
+
+        # Extract and clean transcript text
         transcript_texts = []
         for entry in transcript_data:
             if isinstance(entry, dict) and 'text' in entry:
-                transcript_texts.append(entry['text'])
-                
+                # Clean text: remove unnecessary whitespace and normalize
+                text = ' '.join(entry['text'].split())
+                if text:
+                    transcript_texts.append(text)
+
         if not transcript_texts:
-            raise Exception("No valid text entries found")
-            
+            raise Exception("No valid text entries found in transcript")
+
         return ' '.join(transcript_texts)
+
+    except Exception as e:
+        error_message = str(e)
+        # Add more specific error messages for common issues
+        if "Subtitles are disabled" in error_message:
+            error_message = (
+                f"Subtitles are disabled for this video {video_id}. "
+                "Please try a different video or ensure subtitles are enabled. "
+                "Common causes:\n"
+                "1. Video owner has disabled subtitles\n"
+                "2. Video is private or age-restricted\n"
+                "3. Video is too new and auto-captions aren't ready yet"
+            )
+        elif "Could not retrieve" in error_message:
+            error_message = (
+                f"Could not retrieve transcript for video {video_id}. "
+                "Please verify that:\n"
+                "1. The video URL is correct\n"
+                "2. The video is publicly available\n"
+                "3. The video has captions enabled"
+            )
+            
+        logger.error(f"Transcript error: {error_message}")
+        st.error(error_message)
+        return None
         
     except Exception as e:
         logger.error(f"Error fetching transcript: {str(e)}")
