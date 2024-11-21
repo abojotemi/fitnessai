@@ -7,7 +7,7 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
 
 ## 🌐 Live Demo Here 👉🏼 **[FITNESSAI](https://fitnessai.streamlit.app/)**
  
-
+## [Video Demo](https://youtu.be/PpHuJIrXn-w?si=tdDPp982J9J8S99P)
 
 ## 🌟 Key Features & Workflow
 
