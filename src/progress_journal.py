@@ -1,7 +1,5 @@
 import streamlit as st
 from datetime import datetime
-import pandas as pd
-from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import base64
@@ -9,7 +7,6 @@ import io
 from PIL import Image
 import assemblyai as aai
 import os
-from pathlib import Path
 import json
 import sqlite3
 import logging

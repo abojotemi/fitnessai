@@ -144,7 +144,6 @@ fitnessai/
 │   ├── utils.py            # Utility functions including TTS handler
 │   ├── components.py       # UI components
 │   ├── progress_journal.py # Logic for progress journal
-│   ├── analytics_tab.py    # Logic for app analysis
 │   ├── profile_tab.py      # Logic for the profile form
 │   ├── question.py         # Logic for the speech-to-text and text-to-text models
 │   ├── image_processing.py   # Logic for all Computer Viison models
@@ -165,9 +164,9 @@ fitnessai/
 ### Diet Analysis & Video Analysis
 ![Diet Analyzer](./images/Diet-Analyzer.png)
 ![Video Analyzer](./images/Video-Analyzer.png)
-## Progress Tracking & Performance Analysis
+
+## Progress Tracking 
 ![Progress Journal](./images/Progress-Journal.png)
-![Analytics](./images/Analytics.png)
 
 
 
@@ -254,14 +253,6 @@ fitnessai/
 - View trends and achievements
 - Export progress data
 
-### 7. Analytics Dashboard
-- Monitor your fitness journey
-- View comprehensive statistics:
-  - Usage patterns
-  - Workout preferences
-  - Diet analysis trends
-  - Response times
-  - Geographic insights
 
 ### Tips for Best Results
 - Complete your profile thoroughly for personalized recommendations

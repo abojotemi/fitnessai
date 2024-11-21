@@ -1,7 +1,6 @@
 from pathlib import Path
 import time
 import streamlit as st
-from analytics_tab import log_response_time, log_tts_request, log_user_interaction
 from llm import LLMHandler
 from utils import TTSHandler
 import logging
@@ -130,7 +129,6 @@ class Workout:
         )
         selected_equipment = equipment_options[selected_equipment]
         
-        log_user_interaction('workout_generation', {'equipment': selected_equipment})
         
         # Workout duration preference
         duration_options = {
@@ -210,12 +208,6 @@ class Workout:
                         
                         # Update analytics
                         self._update_analytics(workout_preferences, processing_time)
-                        
-                        log_response_time('workout_generation', processing_time)
-                        log_user_interaction('workout_plan_generated', {
-                                'duration': selected_duration,
-                                'focus_areas': focus_areas
-                            })
 
                         # Create tabs for different views of the workout plan
                         st.session_state.workout_plan = fitness_plan.content
@@ -228,10 +220,6 @@ class Workout:
                                 tts_handler._clean_text(st.session_state.workout_summary)
                             )
                             processing_time = time.time() - start_time
-                            log_tts_request(
-                                text_length=len(st.session_state.workout_summary),
-                                processing_time=processing_time
-                                )
                 
                 # Create workout plan tabs
                 if st.session_state.workout_plan:

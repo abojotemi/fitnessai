@@ -2,15 +2,12 @@ from pathlib import Path
 import streamlit as st
 from streamlit_option_menu import option_menu
 import logging
-from typing import Optional, List, Dict, Any
-from config import AppConfig, UserInfo
+from config import AppConfig
 from question import Question
 from session_state import SessionState
-from components import UIComponents
 from diet_analysis import DietAnalyzer
 from video_analysis import VideoAnalyzer
 from progress_journal import initialize_progress_journal
-from analytics_tab import display_analytics, log_user_interaction, AnalyticsManager
 from food_generator import FoodImageGenerator
 from workout import Workout
 from profile_tab import Profile
@@ -44,12 +41,12 @@ class FitnessCoachApp:
     NAVIGATION_OPTIONS = [
         "Profile", "Generate Workout", "Diet analyzer", 
         "Food Generator", "Questions", "Video Analyzer",
-        "Progress Journal", "Analytics"
+        "Progress Journal"
     ]
     NAVIGATION_ICONS = [
         'person', 'book', 'egg-fried', 'pencil', 
         'patch-question-fill', 'youtube', 'journal', 
-        'graph-up-arrow'
+        
     ]
     
     def __init__(self):
@@ -60,15 +57,6 @@ class FitnessCoachApp:
             self.config = AppConfig()
             SessionState.init_session_state()
             SessionState.load_progress_data()
-            
-            # Initialize analytics
-            if 'user_id' in st.session_state:
-                analytics_manager = AnalyticsManager()
-                analytics_manager.update_user_metrics(
-                    user_id=st.session_state.user_id,
-                    country=st.session_state.get('user_info', {}).get('country'),
-                    platform='web'  # or detect platform
-                )
             
             logger.info("Successfully initialized FitnessCoachApp")
         except Exception as e:
@@ -131,7 +119,6 @@ class FitnessCoachApp:
                 'Questions': self.display_questions_section,
                 'Video Analyzer': self.display_video_section,
                 'Progress Journal': self.display_progress_journal_section,
-                'Analytics': display_analytics
             }
 
             if selected in section_map:
@@ -164,9 +151,6 @@ class FitnessCoachApp:
         """Display diet analyzer section with error handling"""
         try:
             if st.session_state.user_info:
-                log_user_interaction('diet_analysis_start', {
-                    'user_weight': st.session_state.user_info.weight
-                })
                 self.diet_analyzer.display(st.session_state.user_info)
                 logger.info("Successfully displayed diet analyzer section")
             else:
@@ -179,9 +163,6 @@ class FitnessCoachApp:
         """Display food generator section with error handling"""
         try:
             if st.session_state.user_info:
-                log_user_interaction('food_generation_start', {
-                    'feature': 'text_to_image'
-                })
                 self.food_generator.display()
                 logger.info("Successfully displayed food generator section")
             else:
@@ -193,9 +174,6 @@ class FitnessCoachApp:
     def display_questions_section(self) -> None:
         """Display questions section with error handling"""
         try:
-            log_user_interaction('questions_start', {
-                    'feature': 'speech_to_video'
-                })
             self.question.display()
             logger.info("Successfully displayed questions section")
         except Exception as e:

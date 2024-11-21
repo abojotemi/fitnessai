@@ -13,7 +13,6 @@ import pandas as pd
 from collections import defaultdict
 from llm import LLMHandler
 from utils import TTSHandler
-from analytics_tab import log_video_analysis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -321,7 +320,6 @@ class VideoAnalyzer:
                                         user_info=user_info
                                     )
                                     
-                                    log_video_analysis(True, processing_time, video_type='workout')
                                     
                             except Exception as e:
                                 st.error(f"❌ Analysis failed: {str(e)}")
@@ -330,7 +328,6 @@ class VideoAnalyzer:
                                     error_type=type(e).__name__,
                                     user_info=user_info
                                 )
-                                log_video_analysis(False, processing_time, video_type='workout', error=str(e))
                             finally:
                                 st.session_state.processing = False
                     

@@ -2,7 +2,6 @@ import pycountry
 from pydantic import ValidationError
 import streamlit as st
 import logging
-from analytics_tab import log_user_interaction
 from config import UserInfo
 from typing import List, Optional
 
@@ -76,11 +75,7 @@ class Profile:
             st.session_state.user_info = info
             st.session_state.profile_completed = True
             
-            # Log the profile update
-            log_user_interaction('profile_update', {
-                'age': profile_data['age'],
-                'country': profile_data['country']
-            })
+
             
             logger.info(f"Successfully saved profile for user: {profile_data['name']}")
             return True

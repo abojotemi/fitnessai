@@ -169,4 +169,3 @@ class VideoGenerator:
             return None
         finally:
             processing_time = time.time() - start_time
-            log_video_generation(True, processing_time, len(input_text))

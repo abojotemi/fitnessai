@@ -8,7 +8,6 @@ import pandas as pd
 from llm import LLMHandler
 import streamlit as st
 import logging
-from analytics_tab import log_diet_analysis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ class DietAnalyzer:
             st.session_state.diet_processing = False
         if "analysis_history" not in st.session_state:
             st.session_state.analysis_history = []
-        if "analytics" not in st.session_state:
+        if "diet_analytics" not in st.session_state:
             st.session_state.diet_analytics = AnalyticsData(
                 daily_usage={}
             )
@@ -124,26 +123,24 @@ class DietAnalyzer:
                     
     def display_analytics(self):
         """Display usage analytics with interactive visualizations"""
-        analytics = st.session_state.diet_analytics
-        
         # Create metrics row
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Analyses", analytics.total_analyses)
+            st.metric("Total Analyses", st.session_state.diet_analytics.total_analyses)
         with col2:
-            success_rate = (analytics.successful_analyses / analytics.total_analyses * 100) \
-                if analytics.total_analyses > 0 else 0
+            success_rate = (st.session_state.diet_analytics.successful_analyses / st.session_state.diet_analytics.total_analyses * 100) \
+                if st.session_state.diet_analytics.total_analyses > 0 else 0
             st.metric("Success Rate", f"{success_rate:.1f}%")
         with col3:
-            st.metric("Avg Response Time", f"{analytics.avg_response_time:.2f}s")
+            st.metric("Avg Response Time", f"{st.session_state.diet_analytics.avg_response_time:.2f}s")
         with col4:
-            st.metric("Failed Analyses", analytics.failed_analyses)
+            st.metric("Failed Analyses", st.session_state.diet_analytics.failed_analyses)
 
         # Daily usage trend
-        if analytics.daily_usage:
-            dates = list(analytics.daily_usage.keys())
-            counts = list(analytics.daily_usage.values())
+        if st.session_state.diet_analytics.daily_usage:
+            dates = list(st.session_state.diet_analytics.daily_usage.keys())
+            counts = list(st.session_state.diet_analytics.daily_usage.values())
             
             fig = go.Figure()
             fig.add_trace(go.Scatter(
@@ -262,11 +259,6 @@ class DietAnalyzer:
                 })
                 
                 processing_time = time.time() - start_time
-                log_diet_analysis(
-                    success=True,
-                    processing_time=processing_time,
-                    user_id=user_info.name
-                )
                 
                 return analysis
                 

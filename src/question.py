@@ -3,7 +3,6 @@ import time
 from datetime import datetime
 import streamlit as st
 from video_generator import VideoGenerator
-from analytics_tab import log_response_time
 from llm import LLMHandler
 from utils import speech_to_text
 import os
@@ -333,7 +332,6 @@ class Question:
                             st.session_state.transcribed_question = question
                             st.session_state.current_question = question
                             st.write("Transcribed question:", question)
-                            log_response_time('audio_transcription', processing_time)
                             logger.info(f"Audio transcription completed in {processing_time:.2f} seconds")
                         else:
                             st.error("Unable to transcribe audio. Please try again.")
@@ -376,7 +374,6 @@ class Question:
             self._track_question_analytics(processing_time, 'question')
             
             # Rest of the existing method remains the same
-            log_response_time('question_answering', processing_time)
             logger.info(f"Question answered in {processing_time:.2f} seconds")
             
             # Store in history
