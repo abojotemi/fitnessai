@@ -101,7 +101,7 @@ graph TD
 ### Setup Steps
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/fitnessai.git
+git clone https://github.com/abojotemi/fitnessai.git
 cd fitnessai
 ```
 
