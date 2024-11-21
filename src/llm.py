@@ -1,5 +1,8 @@
+import os
 from textwrap import dedent
+import time
 from typing import Any, List, Optional
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate 
 from langchain_community.cache import SQLiteCache
@@ -9,6 +12,11 @@ import streamlit as st
 import logging
 from pydantic import BaseModel, Field
 from tenacity import retry, wait_exponential, stop_after_attempt
+from google.generativeai import GenerativeModel, configure, upload_file, get_file
+
+load_dotenv()
+# Set up Gemini API configuration
+
 
 from image_processing import process_image
 
@@ -40,17 +48,34 @@ class QuestionContext(BaseModel):
 class LLMHandler:
     def __init__(self):
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash-8b-latest",
-                temperature=0.7,
-                retry_on_failure=True
-            )
+            self.llm, self.video_llm = self._load_models()
             self._setup_prompts()
             logger.info("Successfully initialized LLMHandler")
         except Exception as e:
             logger.error(f"Failed to initialize LLMHandler: {str(e)}")
             raise
 
+        
+    # @st.cache_resource
+    def _load_models(_self):
+        llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash-8b-latest",
+                temperature=0.7,
+                retry_on_failure=True
+            )
+        configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        generation_config = {
+            "temperature": 0.2,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 8192
+        }
+        model = GenerativeModel(
+            model_name="gemini-1.5-flash-8b-latest",
+            generation_config=generation_config
+        )
+        return llm, model
+    
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10),
            stop=stop_after_attempt(3))
     def generate_fitness_plan(self, user_profile: QuestionContext, 
@@ -147,9 +172,10 @@ class LLMHandler:
             st.error("Failed to summarize text. Please try again later.")
             return None
 
-    def _setup_prompts(self) -> None:
+    @st.cache_data
+    def _setup_prompts(_self) -> None:
         """Initialize prompt templates with enhanced context"""
-        self.system_prompt = dedent("""You are an experienced fitness coach and personal trainer with extensive knowledge in:
+        _self.system_prompt = dedent("""You are an experienced fitness coach and personal trainer with extensive knowledge in:
         - Exercise physiology
         - Nutrition and diet planning
         - Strength training and conditioning
@@ -166,7 +192,7 @@ class LLMHandler:
         
         Remember the user's profile information to personalize your response. Make your answer short and straight to the point.""")
 
-        self.human_template = dedent("""User Profile:
+        _self.human_template = dedent("""User Profile:
         - Name: {name}
         - Age: {age}
         - Sex: {sex}
@@ -179,12 +205,12 @@ class LLMHandler:
 
         Please provide a detailed, personalized response considering the user's profile.""")
 
-        self.messages = [
-            ('system', self.system_prompt),
-            ('human', self.human_template)
+        _self.messages = [
+            ('system', _self.system_prompt),
+            ('human', _self.human_template)
         ]
         
-        self.prompt = ChatPromptTemplate.from_messages(self.messages)
+        _self.prompt = ChatPromptTemplate.from_messages(_self.messages)
         logger.info("Successfully set up prompt templates")
 
     def _validate_inputs(self, query: str, user_info: Any) -> Optional[QuestionContext]:
@@ -266,50 +292,85 @@ class LLMHandler:
             logger.error(f"Error processing question: {str(e)}", exc_info=True)
             st.error("Failed to process your question. Please try again later.")
             return None
+    
+    @st.cache_data
+    def _upload_file(filename: str):
+        logger.info(f"Starting video upload: {filename}")
+        try:
+            video_file = upload_file(path=filename)
+        except Exception as e:
+            logger.error(f"Error uploading file: {str(e)}", exc_info=True)
+            return None
+        logger.info("Video uploaded successfully")
+        try:
+            while video_file.state.name == "PROCESSING":
+                print('.', end='')
+                time.sleep(10)
+                video_file = get_file(video_file.name)
 
+            if video_file.state.name == "FAILED":
+                raise ValueError(video_file.state.name)
+        except Exception as e:
+            logger.error(f"Error processing video file: {str(e)}", exc_info=True)
+            return None
         
-    @staticmethod
+        logger.info("Video finished processing")
+        return video_file
+        
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10),
            stop=stop_after_attempt(3))
-    def video_analyzer_llm(title: str, query: str, context: str) -> Optional[str]:
+    def video_analyzer_llm(_self, _video, user_info) -> Optional[str]:
         """Analyze video content with retry logic"""
-        logger.info(f"Analyzing video content: {title}")
+        logger.info(f"Analyzing video content")
         
+        video_file = LLMHandler._upload_file(_video)
         try:
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash-8b-latest",
-                temperature=0.7,
-            )
             
             messages = [
-                ('system', dedent("""
-                You are an intelligent video content analyzer. Your task is to provide accurate, relevant answers to questions about the video content using the provided context from the video transcript. Please follow these guidelines:
+                video_file,
+                dedent(f"""You are a fitness AI assistant specialized in analyzing workout videos. Your task is to:
+
+                Identify all exercises performed in the video, including repetitions and sets.
+                Evaluate the user's form for each exercise using pose estimation data and provide detailed, actionable corrections where necessary.
+                Summarize the workout session in clear, user-friendly text, listing exercises performed, repetitions, and any specific observations (e.g., timing, effort level).
+                Format your response as follows:
+                Workout Summary:
+
+                Exercise 1: [Exercise name] - [# of reps] reps, [# of sets] sets
+                Exercise 2: [Exercise name] - [# of reps] reps, [# of sets] sets
+                (...Continue for all detected exercises)
+                Form Feedback:
+
+                Exercise 1:
+                Observation: [Describe detected issue or strength, e.g., "Knees tend to cave inward during squats."]
+                Correction: [Provide actionable feedback, e.g., "Focus on pushing your knees outward during the upward phase."]
+                Exercise 2:
+                Observation: [Observation for the second exercise.]
+                Correction: [Correction for the second exercise.]
+                (...Continue for all detected exercises)
+                Additional Notes:
+
+                If the form is good, include encouraging feedback (e.g., "Great job maintaining balance!").
+                Highlight specific metrics, such as "Time under tension" or "Consistency of reps," if relevant.
+                Use concise and motivational language while maintaining professionalism. If data is incomplete, provide a helpful suggestion (e.g., "Consider positioning the camera to better capture your movements.").
+                Give your answer in markdown form.
+                User Profile:
+                - Name: {user_info.name}
+                - Age: {user_info.age}
+                - Sex: {user_info.sex}
+                - Weight: {user_info.weight}kg
+                - Height: {user_info.height}cm
+                - Fitness Goals: {user_info.goals}
+                - Country: {user_info.country}
                 
-                1. Base your answers solely on the provided context
-                2. If the context doesn't contain enough information to answer the question, clearly state that
-                3. Include relevant quotes from the transcript when appropriate
-                4. Maintain a natural, conversational tone while being informative
-                
-                Title: {title}
-                Context: {context}
-                
-                Question: {question}
-                
-                Please provide a clear and concise answer based on the above context.""")),
-                ('human', f"Context: {context}\n\nQuestion: {query}")
-            ]
+                """)
+                            ]
             
-            prompt = ChatPromptTemplate.from_messages(messages)
-            chain = prompt | llm
             
-            response = chain.invoke({
-                'title': title,
-                'context': context,
-                'question': query
-            })
-            
-            logger.info(f"Successfully analyzed video content: {title}")
-            return response.content
+            response = _self.video_llm.generate_content(messages)
+
+            logger.info(f"Successfully analyzed video content")
+            return response.text
             
         except Exception as e:
             logger.error(f"Error analyzing video content: {str(e)}", exc_info=True)

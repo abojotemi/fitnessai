@@ -7,6 +7,9 @@ from analytics_tab import log_response_time
 from llm import LLMHandler
 from utils import speech_to_text
 import os
+import plotly.express as px
+import plotly.graph_objs as go
+import pandas as pd
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -26,13 +29,14 @@ class Question:
     MAX_FOLLOW_UP_QUESTIONS = 3
     
     def __init__(self):
-        """Initialize Question handler"""
-        logger.info("Initializing Question handler")
+        """Initialize Question handler with analytics tracking"""
+        logger.info("Initializing Enhanced Question handler")
         self.llm = LLMHandler()
         self.video_generator = VideoGenerator()
         self._initialize_session_state()
-        logger.debug("Question handler initialized successfully")
-    
+        self._initialize_analytics()
+        logger.debug("Enhanced Question handler initialized successfully")
+
     def _initialize_session_state(self) -> None:
         """Initialize session state variables"""
         default_states = {
@@ -52,26 +56,145 @@ class Question:
                 st.session_state[key] = default_value
                 logger.debug(f"Initialized session state: {key} = {default_value}")
     
-    def display(self) -> None:
-        """Render questions tab with enhanced features"""
-        st.header("Ask Your Fitness Questions 💪")
+    def _initialize_analytics(self):
+        """Initialize analytics tracking in session state"""
+        analytics_defaults = {
+            'total_questions': 0,
+            'questions_by_day': {},
+            'question_times': [],
+            'processing_times': [],
+            'video_generation_times': []
+        }
         
-        try:
-            self._render_input_section()
-            self._handle_audio_transcription()
-            self._process_question()
-            
-            # Create video section
-            c1,c2 = st.columns(2)
-            with c1:
-                self._display_video_section()
-            with c2:
-                self._display_question_history()
-            
-        except Exception as e:
-            logger.error(f"Error in questions section: {e}", exc_info=True)
-            st.error("An error occurred while processing your question. Please try again.")
+        for key, default in analytics_defaults.items():
+            if f'analytics_{key}' not in st.session_state:
+                st.session_state[f'analytics_{key}'] = default
     
+    def _track_question_analytics(self, processing_time: float, metric_type: str):
+        """Track analytics for different types of metrics"""
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        if metric_type == 'question':
+            # Increment total questions
+            st.session_state.analytics_total_questions += 1
+            
+            # Track questions by day
+            if today in st.session_state.analytics_questions_by_day:
+                st.session_state.analytics_questions_by_day[today] += 1
+            else:
+                st.session_state.analytics_questions_by_day[today] = 1
+            
+            # Track processing time
+            st.session_state.analytics_processing_times.append(processing_time)
+            st.session_state.analytics_question_times.append(datetime.now())
+        
+        elif metric_type == 'video_generation':
+            # Track video generation times
+            st.session_state.analytics_video_generation_times.append(processing_time)
+    def _render_analytics_tab(self):
+        """Render a comprehensive analytics dashboard"""
+        st.header("📊 Usage Analytics")
+        
+        # Total Usage Statistics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Questions", st.session_state.analytics_total_questions)
+        with col2:
+            avg_processing_time = (sum(st.session_state.analytics_processing_times) / 
+                                   len(st.session_state.analytics_processing_times)) if st.session_state.analytics_processing_times else 0
+            st.metric("Avg Processing Time", f"{avg_processing_time:.2f}s")
+        with col3:
+            st.metric("Total Video Generations", len(st.session_state.analytics_video_generation_times))
+        with col4:
+            avg_video_time = (sum(st.session_state.analytics_video_generation_times) / 
+                                   len(st.session_state.analytics_video_generation_times)) if st.session_state.analytics_video_generation_times else 0
+            st.metric("Avg Video Processing Time", f"{avg_video_time:.2f}s")
+        
+        # Daily Questions Line Chart
+        st.subheader("Daily Question Trend")
+        daily_df = pd.DataFrame.from_dict(
+            st.session_state.analytics_questions_by_day, 
+            orient='index', 
+            columns=['Questions']
+        ).reset_index().rename(columns={'index': 'Date'})
+        
+        if not daily_df.empty:
+            fig = px.line(
+                daily_df, x='Date', y='Questions', 
+                title='Questions Asked per Day',
+                labels={'Questions': 'Number of Questions'}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Processing Time Distribution
+        if st.session_state.analytics_processing_times:
+            st.subheader("Processing Time Distribution")
+            fig_hist = px.histogram(
+                x=st.session_state.analytics_processing_times, 
+                labels={'x': 'Processing Time (seconds)'},
+                title='Question Processing Time Distribution'
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+    
+    def display(self):
+        """Render questions tab with enhanced features"""
+        # Create tabs for different sections
+        tab_titles = ["Ask Question", "Analytics", "Features"]
+        tab1, tab2, tab3 = st.tabs(tab_titles)
+        
+        with tab1:
+            st.header("🤔 Ask Your Fitness Questions 💪")
+            
+            # Enhanced Input Section with Better Styling
+            st.markdown("""
+                <style>
+                .stTextArea textarea {
+                    border: 2px solid #3498db;
+                    border-radius: 10px;
+                }
+                .stButton>button {
+                    color: white;
+                    border-radius: 8px;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            try:
+                self._render_input_section()
+                self._handle_audio_transcription()
+                self._process_question()
+                
+                # Create video section
+                c1, c2 = st.columns([2, 1])
+                with c1:
+                    self._display_video_section()
+                with c2:
+                    self._display_question_history()
+                
+            except Exception as e:
+                logger.error(f"Error in questions section: {e}", exc_info=True)
+                st.error("An error occurred while processing your question. Please try again.")
+        
+        with tab2:
+            # Analytics Tab
+            self._render_analytics_tab()
+        
+        with tab3:
+            # Feature Highlights
+            st.header("🌟 Application Features")
+            features = {
+                "🎤 Audio Question": "Upload or record audio questions for easy interaction",
+                "🎥 Video Answers": "Generate short, engaging video answers to your fitness questions",
+                "📊 Performance Tracking": "Monitor your question-asking patterns and system performance",
+                "💬 Question History": "Keep track of your previous questions and answers"
+            }
+            
+            for icon, description in features.items():
+                st.markdown(f"{icon} **{description.split(' ')[1]}**")
+                st.write(description)
+                st.divider()
+        
     def _display_video_section(self) -> None:
         """Handle video display and generation status"""
         try:
@@ -112,24 +235,26 @@ class Question:
             st.error("An error occurred in the video section. Please try again.")
 
     def _handle_pending_video_generation(self) -> None:
-        """Handle pending video generation"""
         try:
             logger.info("Starting video generation process")
             st.session_state.is_video_generating = True
+            start_time = time.time()
             
             with st.spinner("Generating Video..."):
                 video_path = self.video_generator.generate_video(st.session_state.last_response)
                 
                 if video_path:
+                    processing_time = time.time() - start_time
+                    self._track_question_analytics(processing_time, 'video_generation')
+                    
                     logger.info(f"Video generated successfully: {video_path}")
                     st.session_state.video_path = video_path
-                    # Force streamlit to recognize the state change
                     st.session_state["_video_display_key"] = time.time()
                 else:
                     logger.error("Video generation failed")
                     st.error("Unable to generate a video.")
                     st.session_state.show_video_button = True
-                
+            
         except Exception as e:
             logger.error(f"Error in video generation: {e}", exc_info=True)
             st.error("Failed to generate video. Please try again.")
@@ -138,8 +263,8 @@ class Question:
         finally:
             st.session_state.is_video_generating = False
             st.session_state.pending_video_generation = False
-            st.rerun()  # Force a rerun after video generation    
-        
+            st.rerun()       
+             
     def _generate_video_callback(self, response: str) -> None:
         """Callback function for video generation button"""
         try:
@@ -246,9 +371,11 @@ class Question:
                 st.error("Failed to process your question. Please try again.")
     
     def _handle_successful_response(self, question: str, response: str, processing_time: float) -> None:
-        """Handle successful question response"""
         try:
-            # Log metrics
+            # Track question analytics
+            self._track_question_analytics(processing_time, 'question')
+            
+            # Rest of the existing method remains the same
             log_response_time('question_answering', processing_time)
             logger.info(f"Question answered in {processing_time:.2f} seconds")
             

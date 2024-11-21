@@ -10,12 +10,19 @@ from components import UIComponents
 from diet_analysis import DietAnalyzer
 from video_analysis import VideoAnalyzer
 from progress_journal import initialize_progress_journal
-from analytics_tab import display_analytics, log_user_interaction
+from analytics_tab import display_analytics, log_user_interaction, AnalyticsManager
 from food_generator import FoodImageGenerator
 from workout import Workout
 from profile_tab import Profile
 
 # Configure logging with more detailed format
+st.set_page_config(
+            page_title="Fit AI",
+            page_icon="💪",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -49,12 +56,19 @@ class FitnessCoachApp:
         """Initialize application components and state"""
         try:
             # Initialize core components
+            self._initialize_components()
             self.config = AppConfig()
             SessionState.init_session_state()
             SessionState.load_progress_data()
             
-            # Initialize feature components
-            self._initialize_components()
+            # Initialize analytics
+            if 'user_id' in st.session_state:
+                analytics_manager = AnalyticsManager()
+                analytics_manager.update_user_metrics(
+                    user_id=st.session_state.user_id,
+                    country=st.session_state.get('user_info', {}).get('country'),
+                    platform='web'  # or detect platform
+                )
             
             logger.info("Successfully initialized FitnessCoachApp")
         except Exception as e:
@@ -64,7 +78,6 @@ class FitnessCoachApp:
     def _initialize_components(self) -> None:
         """Initialize all application components with error handling"""
         try:
-            self.ui = UIComponents()
             self.diet_analyzer = DietAnalyzer()
             self.food_generator = FoodImageGenerator()
             self.profile = Profile()
@@ -79,7 +92,6 @@ class FitnessCoachApp:
     def start_application(self) -> None:
         """Main application entry point and routing logic"""
         try:
-            self.ui.setup_page()
             st.title(self.APP_TITLE)
             
             # Create horizontal navigation menu
@@ -181,6 +193,9 @@ class FitnessCoachApp:
     def display_questions_section(self) -> None:
         """Display questions section with error handling"""
         try:
+            log_user_interaction('questions_start', {
+                    'feature': 'speech_to_video'
+                })
             self.question.display()
             logger.info("Successfully displayed questions section")
         except Exception as e:
@@ -190,7 +205,7 @@ class FitnessCoachApp:
     def display_video_section(self) -> None:
         """Display video analyzer section with error handling"""
         try:
-            self.video_analyzer.display()
+            self.video_analyzer.display(st.session_state.user_info)
             logger.info("Successfully displayed video analyzer section")
         except Exception as e:
             logger.error(f"Error displaying video analyzer section: {e}")

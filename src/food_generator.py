@@ -11,6 +11,124 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objs as go
+from collections import Counter
+import time
+import logging
+
+class UsageAnalytics:
+    """Analytics component to track food image generation usage"""
+    
+    def __init__(self):
+        # Initialize session state for tracking if not already exists
+        self._initialize_analytics_state()
+    
+    def _initialize_analytics_state(self):
+        """Initialize session state variables for analytics tracking"""
+        if "usage_logs" not in st.session_state:
+            st.session_state.usage_logs = []
+    
+    def log_generation(self, prompt: str, style: str, lighting: str):
+        """Log details of each image generation attempt"""
+        log_entry = {
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'prompt': prompt,
+            'style': style,
+            'lighting': lighting,
+            'success': True  # Assuming success, can be modified based on actual generation result
+        }
+        st.session_state.usage_logs.append(log_entry)
+    
+    def display(self):
+        """Display the usage analytics dashboard"""
+        st.header("📊 Usage Analytics")
+        
+        # Ensure we have usage data
+        if not hasattr(st.session_state, 'usage_logs') or not st.session_state.usage_logs:
+            st.info("No usage data available yet. Generate some images first!")
+            return
+        
+        # Convert logs to DataFrame
+        df = pd.DataFrame(st.session_state.usage_logs)
+        
+        # Tabs for different analytics views
+        tab1, tab2, tab3 = st.tabs(["Overview", "Generation Trends", "Detailed Insights"])
+        
+        with tab1:
+            self._overview_tab(df)
+        
+        with tab2:
+            self._generation_trends_tab(df)
+        
+        with tab3:
+            self._detailed_insights_tab(df)
+    
+    def _overview_tab(self, df):
+        """Display high-level overview of image generation"""
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Generations", len(df))
+        
+        with col2:
+            st.metric("Unique Styles Used", df['style'].nunique())
+        
+        with col3:
+            st.metric("Unique Lighting Conditions", df['lighting'].nunique())
+        
+        # Pie chart of styles
+        fig_styles = px.pie(df, names='style', title='Image Generation Styles')
+        st.plotly_chart(fig_styles, use_container_width=True)
+    
+    def _generation_trends_tab(self, df):
+        """Display trends in image generation"""
+        # Convert timestamp to datetime
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        
+        # Daily generation count
+        daily_counts = df.groupby(df['timestamp'].dt.date).size()
+        
+        fig_daily = go.Figure(data=[
+            go.Bar(x=daily_counts.index.astype(str), y=daily_counts.values)
+        ])
+        fig_daily.update_layout(
+            title='Daily Image Generation Count',
+            xaxis_title='Date',
+            yaxis_title='Number of Generations'
+        )
+        st.plotly_chart(fig_daily, use_container_width=True)
+        
+        # Most common styles and lighting conditions
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Most Used Styles")
+            style_counts = df['style'].value_counts()
+            st.bar_chart(style_counts)
+        
+        with col2:
+            st.subheader("Most Used Lighting")
+            lighting_counts = df['lighting'].value_counts()
+            st.bar_chart(lighting_counts)
+    
+    def _detailed_insights_tab(self, df):
+        """Provide detailed analytics and data exploration"""
+        # Prompt word cloud (conceptual representation)
+        st.subheader("Prompt Word Analysis")
+        all_prompts = ' '.join(df['prompt'])
+        word_counts = Counter(all_prompts.split())
+        top_words = dict(sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:10])
+        
+        st.bar_chart(top_words)
+        
+        # Raw data display
+        st.subheader("Raw Generation Logs")
+        st.dataframe(df)
+
+
 @dataclass
 class GeneratedImage:
     prompt: str
@@ -29,24 +147,29 @@ class FoodImageGenerator:
             st.session_state.generation_history = []
         if "is_generating" not in st.session_state:
             st.session_state.is_generating = False
-            
+        if "analyzer" not in st.session_state:
+            st.session_state.analyzer = UsageAnalytics()
+        
     def display(self):
         """Display the food image generation interface"""
         st.header("🎨 Food Image Generator")
+        tabs = st.tabs(['Generator', 'Analytics'])
         
+        with tabs[0]:
         # Main generation interface
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            self._display_generation_interface()
+            col1, col2 = st.columns([2, 1])
             
-        with col2:
-            self._display_quick_prompts()
-            
-        # History section
-        st.divider()
-        self._display_generation_history()
-    
+            with col1:
+                self._display_generation_interface()
+                
+            with col2:
+                self._display_quick_prompts()
+                
+            # History section
+            st.divider()
+            self._display_generation_history()
+        with tabs[1]:
+            st.session_state.analyzer.display()
     def _display_generation_interface(self):
         """Display the main generation interface"""
         st.markdown("""
@@ -114,7 +237,7 @@ class FoodImageGenerator:
             return
         
         st.session_state.is_generating = True
-        
+        st.session_state.analyzer.log_generation(prompt, style, lighting)
         try:
             # Combine prompt with style and lighting
             full_prompt = f"{prompt}, {style}, {lighting}"

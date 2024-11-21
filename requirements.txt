@@ -28,3 +28,5 @@ youtube-transcript-api
 yt-dlp
 pinecone-client
 langchain-pinecone
+google-auth-oauthlib
+google-auth-httplib2

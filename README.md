@@ -4,6 +4,11 @@ FitnessAI is a comprehensive fitness coaching application that leverages multipl
 
 [Watch Demo Video](insert_demo_video_link_here) (1-minute showcase of key features)
 
+
+## 🌐 Live Demo Here 👉🏼 **[FITNESSAI](https://fitnessai.streamlit.app/)**
+ 
+
+
 ## 🌟 Key Features & Workflow
 
 ### Multimodal Integration Flow
@@ -14,9 +19,14 @@ graph TD
     B -->|Image| D[Diet Analysis]
     B -->|Text/Speech| E[Q&A System]
     E -->|Text| J[Video Response]
-    B -->|Video| F[Content Analysis]
+    B -->|Video| F[Workout Analysis]
+    F -->|Form Analysis| L[Exercise Detection]
+    F -->|Feedback| M[Form Correction]
+    F -->|Analytics| N[Performance Metrics]
     B -->|Text| H[Food Image Generator]
+    C --> K[Audio Response]
     C --> G[Text Response]
+    G --> |Workout Analysis| K
     D --> G
     E --> G
     F --> G
@@ -25,20 +35,32 @@ graph TD
 
 1. **AI-Powered Workout Generation**
    - Text → Text/Audio: Generate custom workouts based on equipment, time, and goals
-   - Includes audio guides with text-to-speech conversion
+   - Real-time analytics tracking for workout preferences
+   - Comprehensive workout history with filtering options
+   - Audio guide generation with caching for better performance
 
 2. **Smart Diet Analysis**
    - Image → Text: Analyze food images for nutritional insights
-   - Provides personalized dietary recommendations
+   - Personalized dietary recommendations based on user profile
+   - Historical analysis tracking with performance metrics
+   - Support for multiple image formats (JPG, PNG, WebP)
 
 3. **Voice-Interactive Q&A**
-   - Speech/Text → Text/Video : Answer fitness questions through voice or text
-   - Real-time transcription and video response options
+   - Speech/Text → Text/Video: Answer fitness questions through voice or text
+   - Real-time transcription with error handling
+   - Video response generation using D-ID API
+   - Analytics tracking for question patterns and response times
 
-4. **Video Content Analysis**
-   - Video → Text: Process fitness video content using RAG architecture
-   - Smart context retrieval for video-specific queries
-  
+4. **Advanced Video Analysis**
+   - Video → Text: Process fitness video content using Gemini Vision
+   - Real-time exercise detection and form analysis
+   - Comprehensive analytics dashboard including:
+     - Success rate and processing time metrics
+     - Geographic usage distribution
+     - Popular workout type tracking
+     - Error analysis and distribution
+   - Performance optimization through caching and retry mechanisms
+
 5. **Food Image Generation**
    - Text → Image: Creates realistic images for food based on user preference
    - Generate high-quality food images from text descriptions using StarryAI integration
@@ -46,6 +68,68 @@ graph TD
 6. **Progress Journal & Analytics**
    - Multimedia progress tracking with rich visualization
    - Performance metrics and trend analysis
+   - Comprehensive usage analytics across all features
+
+## 🚀 Performance Metrics
+
+### Response Times & Accuracy
+| Feature | Response Time | Success Rate | Accuracy |
+|---------|---------------|--------------|-----------|
+| Image Analysis | 20s | 98.2% | 85%+ |
+| Speech Processing | 10s | 97.8% | 95%+ |
+| Text Generation | 10s | 99.9% | - |
+| Video Analysis | 30s | 95.9% | 90%+ |
+| Video Generation | 35s | 96.1% | 90%+ |
+
+### Technical Optimizations
+- Implemented SQLite caching for LLM responses, reducing repeated query times by 80%
+- Added robust error handling and retry mechanisms for API calls
+- Optimized audio processing with chunked text-to-speech conversion
+- Enhanced video analysis with comprehensive analytics tracking
+- Implemented efficient session state management for better performance
+
+## 🛠️ Installation Guide
+
+### Prerequisites
+1. Python 3.8+
+2. Required API Keys:
+   - Google Gemini API
+   - AssemblyAI API
+   - StarryAI API
+   - D-ID API
+
+### Setup Steps
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/fitnessai.git
+cd fitnessai
+```
+
+2. Create and activate virtual environment
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv\Scripts\activate  # Windows
+```
+
+3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+4. Create `.env` file with API keys
+```
+GOOGLE_API_KEY=your_key_here
+ASSEMBLYAI_API_KEY=your_key_here
+STARRYAI_API_KEY=your_key_here
+DID_API_KEY=your_key_here
+```
+
+5. Run the application
+```bash
+streamlit run src/main.py
+```
 
 ## 📝 Project Structure
 ```
@@ -72,86 +156,116 @@ fitnessai/
 └── README.md               # Documentation
 ```
 
-## 🚀 Performance Metrics
-
-### Response Times & Accuracy
-| Feature | Response Time | Success Rate | Accuracy |
-|---------|---------------|--------------|-----------|
-| Image Analysis | 20s | 98.2% | 85%+ |
-| Speech Processing | 10s | 97.8% | 95%+ |
-| Text Generation | 10s | 99.9% | - |
-| Video Analysis | 30s | 95.9% | 90%+ |
-| Video Generation | 35s | 96.1% | 90%+ |
-
-
-### Key Optimizations
-```python
-# Example: Efficient LLM Response Caching
-from langchain.globals import set_llm_cache
-set_llm_cache(SQLiteCache(database_path=".langchain.db"))
-# Reduced repeated query times by 80%
-```
-
-## 🛠️ Installation Guide
-
-### Prerequisites
-```bash
-python -m venv venv
-source venv/bin/activate  # Unix
-# or
-.\venv\Scripts\activate  # Windows
-```
-
-
-
-### API Keys Setup
-
-- [Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
-- [AssemblyAI API Key](https://www.assemblyai.com)
-- [StarryAI API Key](https://starryai.readme.io/reference/getting-started-with-your-api)
-- [Pinecone API Key](https://docs.pinecone.io/guides/projects/manage-api-keys#create-an-api-key)
-- [D-ID API Key](https://docs.d-id.com/reference/get-started)
-
-Create a `.env` file:
-```env
-GOOGLE_API_KEY=your_google_api_key
-ASSEMBLY_AI_KEY=your_assemblyai_key
-STARRYAI_API_KEY=your_starryai_key
-PINECONE_API_KEY=your_pinecone_key
-DID_API_KEY=your_did_api_key
-```
-### Quick Start
-```bash
-git clone https://github.com/abojotemi/fitnessai.git
-cd fitnessai
-pip install -r requirements.txt
-streamlit run src/main.py
-```
-
 ## 📸 App Screenshots
 
 ### Profile & Workout Generation
 ![Profile](./images/Profile.png)
 ![Generate Workout](./images/Generate-Workout.png)
 
-### Diet Analysis & Progress Tracking
+### Diet Analysis & Video Analysis
 ![Diet Analyzer](./images/Diet-Analyzer.png)
+![Video Analyzer](./images/Video-Analyzer.png)
+## Progress Tracking & Performance Analysis
 ![Progress Journal](./images/Progress-Journal.png)
-
-## Performance Analysis
 ![Analytics](./images/Analytics.png)
 
-## 🌐 Live Demo
-Access the deployed app: [FitnessAI Demo](https://fitnessai.streamlit.app/)
+
 
 ## 🛠️ Tech Stack
 - **Frontend**: Streamlit
 - **AI Models**: Google Gemini, D-ID, StarryAI, AssemblyAI
-- **Backend**: Langchain, Pinecone, SQLite
-- **Analytics**: Plotly
+- **Backend**: Langchain, SQLite
+- **Analytics**: Plotly, Pandas
 
 ## 📊 Technical Achievements
-- Implemented RAG architecture for video analysis
 - Reduced memory usage by 40% in audio processing
 - Improved image classification accuracy by 15%
 - Achieved 80% faster response times through caching
+- Implemented robust video analysis with Gemini Vision
+- Added comprehensive analytics tracking for video analysis
+- Enhanced error handling and retry mechanisms
+
+## 📱 How to Use FitnessAI
+
+### 1. Getting Started - Profile Setup
+- Upon first launch, complete your profile in the "Profile" tab
+- Required information includes:
+  - Name, age, sex
+  - Current weight and height
+  - Fitness goals
+  - Country (for personalized recommendations)
+- **Note**: Profile completion is required to access other features
+
+### 2. Workout Generation
+- Navigate to "Generate Workout" tab
+- Select your preferences:
+  - Available equipment
+  - Workout duration (15-120 minutes)
+  - Training frequency
+  - Focus areas (multiple selections allowed)
+  - Any physical limitations
+- View your workout plan in three formats:
+  - Complete written plan
+  - Quick summary
+  - Downloadable audio guide
+
+### 3. Diet Analysis
+- Go to "Diet Analyzer" tab
+- Upload food images (JPG, JPEG, PNG, or WebP)
+- Get instant analysis of:
+  - Nutritional content
+  - Portion recommendations
+  - Healthier alternatives
+- View historical analyses in the "History" tab
+- Track dietary patterns in "Analytics"
+
+### 4. Interactive Q&A
+- Access the "Questions" tab
+- Two ways to ask questions:
+  1. Text Input:
+     - Type your fitness-related question
+     - Click "Get Answer" for instant response
+  2. Voice Input:
+     - Click microphone icon
+     - Speak your question
+     - System transcribes and processes automatically
+- Optional: Generate video responses with AI avatar
+- View question history and trends
+
+### 5. Video Analysis
+- Use "Video Analyzer" tab
+- Upload workout videos for:
+  - Form analysis
+  - Exercise detection
+  - Real-time feedback
+- View analytics including:
+  - Success rate
+  - Popular workout types
+  - Error distribution
+- Access historical analyses
+
+### 6. Progress Tracking
+- Record progress in "Progress Journal"
+- Add entries for:
+  - Workouts completed
+  - Weight changes
+  - Measurements
+  - Progress photos
+- View trends and achievements
+- Export progress data
+
+### 7. Analytics Dashboard
+- Monitor your fitness journey
+- View comprehensive statistics:
+  - Usage patterns
+  - Workout preferences
+  - Diet analysis trends
+  - Response times
+  - Geographic insights
+
+### Tips for Best Results
+- Complete your profile thoroughly for personalized recommendations
+- Use well-lit images for diet analysis
+- Record workouts regularly for accurate progress tracking
+- Keep video analysis clips focused on exercise form
+- Check analytics regularly to optimize your routine

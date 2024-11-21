@@ -148,6 +148,7 @@ class VideoGenerator:
     def generate_video(_self, input_text: str) -> Optional[Path]:
         """Generate a video using the D-ID API."""
         logger.info("Starting video generation process")
+        start_time = time.time()
         try:
             payload = _self._create_payload(input_text)
             
@@ -166,3 +167,6 @@ class VideoGenerator:
         except Exception as e:
             logger.error(f"Error in video generation process: {e}", exc_info=True)
             return None
+        finally:
+            processing_time = time.time() - start_time
+            log_video_generation(True, processing_time, len(input_text))
