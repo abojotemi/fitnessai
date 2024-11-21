@@ -167,5 +167,3 @@ class VideoGenerator:
         except Exception as e:
             logger.error(f"Error in video generation process: {e}", exc_info=True)
             return None
-        finally:
-            processing_time = time.time() - start_time
