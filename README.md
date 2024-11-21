@@ -125,7 +125,11 @@ ASSEMBLYAI_API_KEY=your_key_here
 STARRYAI_API_KEY=your_key_here
 DID_API_KEY=your_key_here
 ```
-
+Get the API keys from the respective links below:
+- [Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
+- [AssemblyAI API Key](https://www.assemblyai.com)
+- [StarryAI API Key](https://starryai.readme.io/reference/getting-started-with-your-api)
+- [D-ID API Key](https://docs.d-id.com/reference/get-started)
 5. Run the application
 ```bash
 streamlit run src/main.py
