@@ -2,12 +2,10 @@
 
 FitnessAI is a comprehensive fitness coaching application that leverages multiple AI modalities to provide personalized workout plans, diet analysis, and progress tracking. Built with Streamlit and powered by state-of-the-art AI models, it offers an interactive experience for your fitness journey.
 
-[Watch Demo Video](insert_demo_video_link_here) (1-minute showcase of key features)
+👉🏼 [Watch Demo Video](https://youtu.be/PpHuJIrXn-w?si=tdDPp982J9J8S99P) (1-minute showcase of key features)
 
 
 ## 🌐 Live Demo Here 👉🏼 **[FITNESSAI](https://fitnessai.streamlit.app/)**
- 
-## [Video Demo](https://youtu.be/PpHuJIrXn-w?si=tdDPp982J9J8S99P)
 
 ## 🌟 Key Features & Workflow
 
